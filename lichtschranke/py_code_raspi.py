@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+
+#
+# License: GNU General Public License v2
+#
+# Author: bh2005
+# URL   : https://github.com/bh2005
+# Date  : 2025-01-24
+#
+
 import RPi.GPIO as GPIO
 import time
 from tm1637 import TM1637
