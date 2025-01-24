@@ -43,7 +43,7 @@ def stop_measurement(channel):
             time_str = f"{minutes:02}{seconds:02}{hundredths:02}"
             display.show(time_str)
             log_time(minutes, seconds, hundredths)
-            print(f"Messung beendet! Zeit: {minutes}:{seconds}:{hundredths:02}")
+            print(f"Messung beendet! Zeit: {minutes:02}:{seconds:02}:{hundredths:02}")
         else:
             print("Messung zu kurz, mindestens 10 Sekunden erforderlich.")
         measuring = False
