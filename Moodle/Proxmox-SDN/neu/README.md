@@ -13,17 +13,17 @@ Dieses Repository (`bastelecke/Moodle/Proxmox-SDN/neu`) enthält Schulungsunterl
 Das Repository ist in Module unterteilt, die jeweils einen spezifischen Aspekt der SDN-Konfiguration in Proxmox VE behandeln. Jedes Modul enthält theoretische Erklärungen, praktische Übungen, Fehlerbehebungstipps und Fragen zur Selbstreflexion.
 
 ### Module
-1. **Einführung in SDN und Proxmox VE**: Überblick über SDN-Konzepte und die Rolle von Proxmox VE.
-2. **Installation und Grundkonfiguration von SDN**: Einrichtung des `pve-sdn`-Dienstes und grundlegender Netzwerkkomponenten.
-3. **Erstellen und Verwalten von VNets**: Konfiguration von VLAN-basierten VNets (z. B. `vnet-web`, `vnet-db`).
-4. **IP-Pool-Management und DHCP**: Einrichtung von IP-Pools und automatische IP-Vergabe.
-5. **Inter-VNet-Routing**: Ermöglichen der Kommunikation zwischen VNets.
-6. **Firewall-Konfiguration**: Einrichten von Sicherheitsregeln für VNets.
-7. **Erweiterte Firewall-Funktionen**: Feinabstimmung und Optimierung der Firewall-Regeln.
-8. **Integration mit externen Routern**: Konfiguration statischer Routen für Internetzugriff.
-9. **Dynamisches Routing mit BGP**: Einrichtung von BGP und EVPN für automatische Routenverteilung.
-10. **Load Balancing in SDN**: Implementierung von HAProxy für die Verteilung von HTTP-Verkehr.
-11. **Monitoring und Optimierung**: Überwachung der SDN-Umgebung mit Checkmk Raw Edition und Optimierung basierend auf Metriken.
+1. **[Einführung in SDN und Proxmox VE](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/01_Einfuehrung_SDN_Proxmox.md)**: Überblick über SDN-Konzepte und die Rolle von Proxmox VE.
+2. **[Installation und Grundkonfiguration von SDN](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/02_Installation_Grundkonfiguration_SDN.md)**: Einrichtung des `pve-sdn`-Dienstes und grundlegender Netzwerkkomponenten.
+3. **[Erstellen und Verwalten von VNets](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/03_VNets_Erstellen_Verwalten.md)**: Konfiguration von VLAN-basierten VNets (z. B. `vnet-web`, `vnet-db`).
+4. **[IP-Pool-Management und DHCP](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/04_IP_Pool_DHCP.md)**: Einrichtung von IP-Pools und automatische IP-Vergabe.
+5. **[Inter-VNet-Routing](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/05_Inter_VNet_Routing.md)**: Ermöglichen der Kommunikation zwischen VNets.
+6. **[Firewall-Konfiguration](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/06_Firewall_Konfiguration.md)**: Einrichten von Sicherheitsregeln für VNets.
+7. **[SDN Troubleshooting](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/07_SDN_Troubleshooting.md)**: Techniken zur Identifikation und Behebung häufiger SDN-Probleme.
+8. **[Integration mit externen Routern](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/08_Integration_Externe_Router.md)**: Konfiguration statischer Routen für Internetzugriff.
+9. **[Dynamisches Routing mit BGP](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/09_Dynamisches_Routing_BGP.md)**: Einrichtung von BGP und EVPN für automatische Routenverteilung.
+10. **[Load Balancing in SDN](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/10_Load_Balancing_SDN.md)**: Implementierung von HAProxy für die Verteilung von HTTP-Verkehr.
+11. **[Monitoring und Optimierung](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/11_Monitoring_Optimierung.md)**: Überwachung der SDN-Umgebung mit Checkmk Raw Edition und Optimierung basierend auf Metriken.
 
 ## Zielgruppe
 - **Systemadministratoren**: Mit Grundkenntnissen in Linux und Netzwerkadministration, die Proxmox VE für Virtualisierung nutzen.
@@ -46,12 +46,12 @@ Das Repository ist in Module unterteilt, die jeweils einen spezifischen Aspekt d
    git clone https://github.com/bh2005/bastelecke.git
    cd bastelecke/Moodle/Proxmox-SDN/neu
    ```
-2. **Module durcharbeiten**: Jedes Modul ist als eigenständiges Dokument (z. B. Markdown oder PDF) verfügbar und enthält Anleitungen, Shell-Befehle und Konfigurationsbeispiele.
+2. **Module durcharbeiten**: Jedes Modul ist als eigenständiges Markdown-Dokument verfügbar und enthält Anleitungen, Shell-Befehle und Konfigurationsbeispiele.
 3. **Umgebung einrichten**:
    - Installieren Sie Proxmox VE und aktivieren Sie den SDN-Stack (`pve-sdn`).
    - Richten Sie eine Testumgebung mit mindestens zwei VMs ein (z. B. in `vnet-web` und `vnet-db`).
    - Folgen Sie den Modulen, um VNets, Routing, Firewall, Load Balancing und Monitoring zu konfigurieren.
-4. **Monitoring**: Verwenden Sie die Checkmk Raw Edition (siehe Modul 11), um die Leistung Ihrer SDN-Umgebung zu überwachen.
+4. **Monitoring**: Verwenden Sie die Checkmk Raw Edition (siehe [Modul 11](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/11_Monitoring_Optimierung.md)), um die Leistung Ihrer SDN-Umgebung zu überwachen.
 
 ## Beiträge und Erweiterungen
 - **Beiträge**: Pull Requests mit neuen Modulen, Korrekturen oder Ergänzungen sind willkommen. Bitte beachten Sie die Contributing-Guidelines im Repository.
@@ -75,4 +75,4 @@ Für Fragen oder Feedback wenden Sie sich an den Repository-Maintainer:
 - **HAProxy**: [haproxy.org](https://www.haproxy.org)
 
 ## Nächste Schritte
-Beginnen Sie mit Modul 1, um die Grundlagen von SDN in Proxmox VE zu erlernen, und arbeiten Sie sich durch die Module, um eine voll funktionsfähige SDN-Umgebung aufzubauen. Experimentieren Sie mit den praktischen Übungen, um Ihre Fähigkeiten zu vertiefen, und nutzen Sie Checkmk, um die Leistung Ihrer Umgebung zu überwachen und zu optimieren.
+Beginnen Sie mit [Modul 1](https://github.com/bh2005/bastelecke/blob/main/Moodle/Proxmox-SDN/neu/01_Einfuehrung_SDN_Proxmox.md), um die Grundlagen von SDN in Proxmox VE zu erlernen, und arbeiten Sie sich durch die Module, um eine voll funktionsfähige SDN-Umgebung aufzubauen. Experimentieren Sie mit den praktischen Übungen, um Ihre Fähigkeiten zu vertiefen, und nutzen Sie Checkmk, um die Leistung Ihrer Umgebung zu überwachen und zu optimieren.
