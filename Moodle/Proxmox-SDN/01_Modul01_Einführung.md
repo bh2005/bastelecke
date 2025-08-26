@@ -64,4 +64,4 @@ Diese Übungen sollen Ihnen ein Gefühl für die Proxmox-Netzwerkkonfiguration g
 
 Im nächsten Modul gehen wir einen Schritt weiter und verwenden die vorbereitete OVS Bridge, um die SDN-Funktionen zu aktivieren und unsere erste VNet-Struktur zu erstellen.
 
-**[Modul 2: Lab-Setup und Vorbereitung](02_Modul02_Setup.md)**   oder **[zurück zur Übersicht](00_Übersicht_SDN)**
+**[Modul 2: Lab-Setup und Vorbereitung](02_Modul02_Setup.md)**   oder **[zurück zur Übersicht](00_Übersicht_SDN.md)**
