@@ -36,7 +36,7 @@ Nach Abschluss des Kurses sind Sie in der Lage:
 * Überblick über die Proxmox VE-Netzwerkinfrastruktur: Linux Bridge vs. Open vSwitch.
 * Vorteile des Proxmox-SDN-Frameworks.
 
-**Modul 2: Lab-Setup und Vorbereitung**
+**[Modul 2: Lab-Setup und Vorbereitung](02_Modul02_Setup.md)**
 * Einrichtung einer Übungsumgebung mit Proxmox (z. B. auf einem Einzel-Host mit verschachtelter Virtualisierung).
 * Aktivierung der SDN-Funktionalität in Proxmox.
 
