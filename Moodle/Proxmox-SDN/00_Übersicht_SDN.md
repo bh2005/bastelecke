@@ -40,14 +40,14 @@ Nach Abschluss des Kurses sind Sie in der Lage:
 * Einrichtung einer Übungsumgebung mit Proxmox (z. B. auf einem Einzel-Host mit verschachtelter Virtualisierung).
 * Aktivierung der SDN-Funktionalität in Proxmox.
 
-**Modul 3: Konfiguration der grundlegenden SDN-Komponenten**
+**[Modul 3: Konfiguration der grundlegenden SDN-Komponenten](03_Modul03_Konfiguration.md)**
 * **Theorie & Praxis:**
     * Erstellen von **Zones** (einfachere VLAN-basierten Zonen).
     * Erstellen der ersten **VNets** (virtuelle Netzwerke).
     * Zuordnung von VMs zu den VNets.
     * Praktische Übungen: Kommunikation innerhalb eines VNets und Isolierung.
 
-**Modul 4: Automatisches IP-Management (IPAM)**
+**[Modul 4: Automatisches IP-Management (IPAM)](04_Modul04_IPAM.md)**
 * **Theorie & Praxis:**
     * Einführung in die Proxmox-IPAM-Funktion.
     * Konfiguration von IP-Pools und deren Zuweisung zu VNets.
@@ -55,13 +55,13 @@ Nach Abschluss des Kurses sind Sie in der Lage:
 
 #### **Tag 2: Fortgeschrittene SDN-Konfiguration und Troubleshooting**
 
-**Modul 5: Inter-VNet-Routing**
+**[Modul 5: Inter-VNet-Routing](05_Modul05_VNet.md)**
 * **Theorie & Praxis:**
     * Grundlagen des Routings in Proxmox-SDN.
     * Konfiguration von Gateways und Routing-Regeln, um die Kommunikation zwischen verschiedenen VNets zu ermöglichen.
     * Praktische Übungen: Aufbau eines Multi-Tier-Netzwerks (z. B. Web-Tier, App-Tier, DB-Tier).
 
-**Modul 6: SDN-Firewall und Sicherheitsregeln**
+**[Modul 6: SDN-Firewall und Sicherheitsregeln](06_Modul06_FW.md)**
 * **Theorie & Praxis:**
     * Einführung in die SDN-Firewall.
     * Erstellung von Sicherheitsregeln (Allow/Deny) auf VNet-Ebene.

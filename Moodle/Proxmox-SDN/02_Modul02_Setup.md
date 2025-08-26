@@ -84,4 +84,4 @@ SDN-Konfigurationen greifen tief in die Netzwerkinfrastruktur ein. Fehler bei de
 
 Mit der erfolgreichen Aktivierung des SDN-Controllers und der Vorbereitung der ersten VNet-Schnittstelle sind Sie nun bereit, in Modul 3 die ersten Zonen und Netzwerke zu definieren.
 
-**[Modul 3: Konfiguration der grundlegenden SDN-Komponenten](03_Modul03_Konfiguration.md)**   oder **[zurück zur Übersicht](00_Übersicht_SDN)**
+**[Modul 3: Konfiguration der grundlegenden SDN-Komponenten](03_Modul03_Konfiguration.md)**   oder **[zurück zur Übersicht](00_Übersicht_SDN.md)**
