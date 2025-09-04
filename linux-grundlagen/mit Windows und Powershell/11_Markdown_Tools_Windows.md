@@ -1,4 +1,3 @@
-```markdown
 # Praxisorientierte Anleitung: Markdown unter Windows – Tools und Spielereien
 
 Ja, die meisten der genannten Markdown-Aspekte und Tools lassen sich auch unter Windows nutzen, da Markdown eine plattformunabhängige Auszeichnungssprache ist und viele Tools entweder nativ für Windows verfügbar sind oder über Subsysteme wie WSL (Windows Subsystem for Linux) oder Paketmanager wie Chocolatey installiert werden können. Diese Anleitung zeigt, wie die genannten Aspekte und "Spielereien" unter Windows umgesetzt werden können, mit PowerShell-Befehlen, nativen Tools oder Linux-Tools via WSL. Die Schwerpunkte sind **Markdown-Vorschau**, **Konvertierung**, **Versionskontrolle**, **Automatisierung**, **erweiterte Syntax**, **Editoren**, **statische Websites**, **Backup/Sync** und **lustige Tools**.

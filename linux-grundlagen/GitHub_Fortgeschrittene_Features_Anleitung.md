@@ -1,4 +1,3 @@
-```markdown
 # Praxisorientierte Anleitung: Fortgeschrittene GitHub-Features für CI/CD, Dokumentation und Commit-Historie
 
 ## Einführung
