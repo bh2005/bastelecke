@@ -60,51 +60,56 @@ Hier sind die zentralen Befehle und Konzepte, aufgeteilt nach den Hauptthemen:
 3. **Schritt 3**: Erstelle einen GitHub Actions-Workflow:
    ```bash
    mkdir -p .github/workflows
-   echo 'name: Build and Deploy Hugo Site
-    on:
-    push:
-        branches: [ main ]
-    workflow_dispatch:
-    permissions:
-    contents: read
-    pages: write
-    id-token: write
-    concurrency:
-    group: pages
-    cancel-in-progress: false
-    jobs:
-    build:
-        runs-on: ubuntu-latest
-        env:
-        HUGO_VERSION: 0.149.0
-        steps:
-        - name: Checkout
-            uses: actions/checkout@v5
-            with:
-            submodules: recursive
-            fetch-depth: 0
-        - name: Setup Hugo
-            run: |
-            curl -sLJO "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz"
-            tar -xf "hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz" hugo
-            mv hugo /usr/local/bin/
-        - name: Build Site
-            run: hugo --minify
-        - name: Upload Artifact
-            uses: actions/upload-pages-artifact@v3
-            with:
-            path: ./public
-    deploy:
-        environment:
-        name: github-pages
-        url: ${{ steps.deployment.outputs.page_url }}
-        runs-on: ubuntu-latest
-        needs: build
-        steps:
-        - name: Deploy to GitHub Pages
-            id: deployment
-            uses: actions/deploy-pages@v4' > .github/workflows/hugo-deploy.yml
+   nano .github/workflows/hugo-deploy.yml
    ```
+   Füge folgenden Inhalt ein:
+   ```yaml
+   name: Build and Deploy Hugo Site
+   on:
+     push:
+       branches: [ main ]
+     workflow_dispatch:
+   permissions:
+     contents: read
+     pages: write
+     id-token: write
+   concurrency:
+     group: pages
+     cancel-in-progress: false
+   jobs:
+     build:
+       runs-on: ubuntu-latest
+       env:
+         HUGO_VERSION: 0.149.0
+       steps:
+         - name: Checkout
+           uses: actions/checkout@v5
+           with:
+             submodules: recursive
+             fetch-depth: 0
+         - name: Setup Hugo
+           run: |
+             curl -sLJO "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz"
+             tar -xf "hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz" hugo
+             mv hugo /usr/local/bin/
+         - name: Build Site
+           run: hugo --minify
+         - name: Upload Artifact
+           uses: actions/upload-pages-artifact@v3
+           with:
+             path: ./public
+     deploy:
+       environment:
+         name: github-pages
+         url: ${{ steps.deployment.outputs.page_url }}
+       runs-on: ubuntu-latest
+       needs: build
+       steps:
+         - name: Deploy to GitHub Pages
+           id: deployment
+           uses: actions/deploy-pages@v4
+   ```
+   Speichere und schließe.
 
 4. **Schritt 4**: Committe und pushe den Workflow:
    ```bash
@@ -213,5 +218,3 @@ Dies ist ein Hugo-basiertes Projekt für eine statische Webseite.
 
 ## Fazit
 Mit diesen Übungen hast du fortgeschrittene GitHub-Features gemeistert, einschließlich CI/CD mit GitHub Actions, strukturierten Wikis und sauberer Commit-Historien mit `git rebase`. Vertiefe dein Wissen, indem du komplexere Workflows (z. B. Tests in Actions), erweiterte Wiki-Features (z. B. Seitenverlinkung) oder interaktives Rebase mit mehreren Commits ausprobierst. Wenn du ein spezifisches Thema (z. B. komplexe Actions oder Rebase-Strategien) vertiefen möchtest, lass es mich wissen!
-
-```
