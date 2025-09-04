@@ -1,4 +1,4 @@
-```markdown
+
 # Praxisorientierte Anleitung: Einstieg in GitHub für Versionskontrolle und Zusammenarbeit
 
 ## Einführung
