@@ -61,49 +61,49 @@ Hier sind die zentralen Befehle und Konzepte, aufgeteilt nach den Hauptthemen:
    ```bash
    mkdir -p .github/workflows
    echo 'name: Build and Deploy Hugo Site
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: false
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      HUGO_VERSION: 0.149.0
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-          fetch-depth: 0
-      - name: Setup Hugo
-        run: |
-          curl -sLJO "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz"
-          tar -xf "hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz" hugo
-          mv hugo /usr/local/bin/
-      - name: Build Site
-        run: hugo --minify
-      - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./public
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4' > .github/workflows/hugo-deploy.yml
+    on:
+    push:
+        branches: [ main ]
+    workflow_dispatch:
+    permissions:
+    contents: read
+    pages: write
+    id-token: write
+    concurrency:
+    group: pages
+    cancel-in-progress: false
+    jobs:
+    build:
+        runs-on: ubuntu-latest
+        env:
+        HUGO_VERSION: 0.149.0
+        steps:
+        - name: Checkout
+            uses: actions/checkout@v5
+            with:
+            submodules: recursive
+            fetch-depth: 0
+        - name: Setup Hugo
+            run: |
+            curl -sLJO "https://github.com/gohugoio/hugo/releases/download/v${{ env.HUGO_VERSION }}/hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz"
+            tar -xf "hugo_extended_${{ env.HUGO_VERSION }}_linux-amd64.tar.gz" hugo
+            mv hugo /usr/local/bin/
+        - name: Build Site
+            run: hugo --minify
+        - name: Upload Artifact
+            uses: actions/upload-pages-artifact@v3
+            with:
+            path: ./public
+    deploy:
+        environment:
+        name: github-pages
+        url: ${{ steps.deployment.outputs.page_url }}
+        runs-on: ubuntu-latest
+        needs: build
+        steps:
+        - name: Deploy to GitHub Pages
+            id: deployment
+            uses: actions/deploy-pages@v4' > .github/workflows/hugo-deploy.yml
    ```
 
 4. **Schritt 4**: Committe und pushe den Workflow:
