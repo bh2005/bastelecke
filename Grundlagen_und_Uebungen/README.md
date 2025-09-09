@@ -2,7 +2,7 @@
 
 ## Directory Tree for Grundlagen_und_Uebungen
 
-...
+```
 Grundlagen_und_Uebungen
 ├── 01_Linux
 │   ├── [01_linux_kommandozeile_anleitung.md](Grundlagen_und_Uebungen/01_linux_kommandozeile_anleitung.md)
@@ -147,6 +147,7 @@ Grundlagen_und_Uebungen
 │       ├── [Modul10_LoadBalancing.md](Grundlagen_und_Uebungen/Modul10_LoadBalancing.md)
 │       ├── [Modul11_Monitoring.md](Grundlagen_und_Uebungen/Modul11_Monitoring.md)
 │       └── [Modul12_API.md](Grundlagen_und_Uebungen/Modul12_API.md)
+├── [README.md](Grundlagen_und_Uebungen/README.md)
 ├── [Regex_Cheat_Sheet.md](Grundlagen_und_Uebungen/Regex_Cheat_Sheet.md)
 └── [dir_tree.py](Grundlagen_und_Uebungen/dir_tree.py)
-...
+```

@@ -5,7 +5,7 @@ import sys
 
 def generate_tree_data(start_path, prefix=''):
     """
-    Generates a list of tuples with tree data: (prefix, item, is_directory)
+    Generates a list of tuples with tree data: (prefix, item, is_directory, relative_path)
     """
     tree_lines = []
     contents = sorted(os.listdir(start_path))
@@ -15,32 +15,37 @@ def generate_tree_data(start_path, prefix=''):
         is_last = (i == len(contents) - 1)
         is_dir = os.path.isdir(path)
         
+        rel_path = os.path.relpath(path, start_path)
+        
         if is_last:
-            tree_lines.append((f"{prefix}└── ", item, is_dir))
+            tree_lines.append((f"{prefix}└── ", item, is_dir, rel_path))
             new_prefix = f"{prefix}    "
         else:
-            tree_lines.append((f"{prefix}├── ", item, is_dir))
+            tree_lines.append((f"{prefix}├── ", item, is_dir, rel_path))
             new_prefix = f"{prefix}│   "
             
         if is_dir:
-            tree_lines.extend(generate_tree_data(path, new_prefix))
+            sub_tree = generate_tree_data(path, new_prefix)
+            # Adjust relative paths for sub-tree
+            for line in sub_tree:
+                tree_lines.append(line)
             
     return tree_lines
 
-def generate_markdown_links(tree_data, base_dir_name):
+def generate_linked_tree_string(tree_data, base_dir_name):
     """
     Generates the final Markdown-formatted tree with links.
     """
     linked_tree = []
-    for line_prefix, item, is_dir in tree_data:
-        full_path_parts = line_prefix.replace("└── ", "").replace("├── ", "").split("│   ")
-        clean_path_parts = [p.strip() for p in full_path_parts if p.strip()]
-        relative_path = os.path.join(base_dir_name, *clean_path_parts, item)
-        encoded_path = urllib.parse.quote(relative_path.replace("\\", "/"))
-        
+    
+    # We need to build the full relative path from the root directory
+    for line_prefix, item, is_dir, rel_path in tree_data:
         if is_dir:
             linked_tree.append(f"{line_prefix}{item}")
         else:
+            # Construct the final relative path correctly
+            full_relative_path = os.path.join(base_dir_name, rel_path)
+            encoded_path = urllib.parse.quote(full_relative_path.replace("\\", "/"))
             linked_tree.append(f"{line_prefix}[{item}]({encoded_path})")
 
     return linked_tree
@@ -76,19 +81,28 @@ Usage Examples:
     
     args = parser.parse_args()
     
-    target_dir = args.directory
+    target_dir = os.path.abspath(args.directory)
     output_file = args.output
     main_title = args.title
     
     if not os.path.isdir(target_dir):
         print(f"Error: The directory '{target_dir}' does not exist.")
         return
-        
+    
     print(f"Generating directory tree for '{target_dir}'...")
     
     tree_data = generate_tree_data(target_dir)
-    base_dir_name = os.path.basename(os.path.abspath(target_dir))
-    linked_tree_lines = generate_markdown_links(tree_data, base_dir_name)
+    base_dir_name = os.path.basename(target_dir)
+    
+    # Generate the linked tree, handling the top-level directory separately
+    linked_tree_lines = []
+    for line_prefix, item, is_dir, rel_path in tree_data:
+        if is_dir:
+            linked_tree_lines.append(f"{line_prefix}{item}")
+        else:
+            full_relative_path = os.path.join(base_dir_name, rel_path)
+            encoded_path = urllib.parse.quote(full_relative_path.replace("\\", "/"))
+            linked_tree_lines.append(f"{line_prefix}[{item}]({encoded_path})")
     
     md_content = f"# {main_title}\n\n"
     md_content += f"## Directory Tree for {base_dir_name}\n\n"
