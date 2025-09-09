@@ -1,4 +1,3 @@
-```markdown
 # Lernprojekt: Zusätzliche Übungen zu lokalen LLMs in einer HomeLab
 
 ## Einführung
@@ -450,4 +449,3 @@ Sie sind ideal für Schüler, die lokale KI in einer HomeLab erkunden möchten.
 - Sentence-Transformers: https://sbert.net
 - Proxmox VE-Dokumentation: https://pve.proxmox.com/pve-docs/
 - Webquellen:,,,,,
-```

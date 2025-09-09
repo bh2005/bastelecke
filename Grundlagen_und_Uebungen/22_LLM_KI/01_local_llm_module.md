@@ -1,4 +1,3 @@
-```markdown
 # Lernprojekt: Lokale LLMs für Programmierunterstützung, Dokumentenanalyse und Textgenerierung
 
 ## Einführung
@@ -484,4 +483,3 @@ Es ist ideal für Schüler, die lokale KI in einer HomeLab-Umgebung erkunden mö
 - Llama-Dokumentation: https://github.com/meta-ai/llama
 - Proxmox VE-Dokumentation: https://pve.proxmox.com/pve-docs/
 - Webquellen:,,,,,[](https://t3n.de/news/ollama-lokale-ki-llama-deepseek-1701112/)[](https://pcwelts.de/ollama/)[](https://robert-leitinger.com/llm-lokal-nutzen-lm-studio/)
-```
