@@ -6,13 +6,13 @@
     * **Docker-Grundlagen**: Erstellen und Verwalten von Images (`Dockerfile`), Containern und Volumes.
     * **Kubernetes-Einstieg**: Eine Einführung in Pods, Deployments und Services, um die Skalierung und Verwaltung von Container-Anwendungen zu lernen.
 
-* **Cloud-Computing-Grundlagen**: Die Inhalte konzentrieren sich stark auf die lokale Infrastruktur (`Proxmox`, `NGINX`). Eine Einführung in die Cloud ist daher eine wichtige Ergänzung.
+* **Cloud-Computing-Grundlagen**: Einführung in die Cloud.
     * **AWS, Azure oder GCP**: Grundlagen-Module für einen der großen Anbieter, die die Erstellung und Verwaltung von virtuellen Maschinen (EC2, VMs), Speicherdiensten (S3, Blob Storage) und Netzwerken behandeln. 
 
 * **Infrastructure as Code (IaC)**: Das Ansible-Modul ist ein guter Anfang. Terraform ist der Industriestandard für die Bereitstellung von Infrastruktur.
     * **Terraform-Anleitung**: Eine Anleitung zur deklarativen Bereitstellung von Cloud- oder on-prem-Ressourcen.
 
-* **Erweitertes Monitoring und Logging**: Der Checkmk-Bereich ist solide, aber das Ökosystem ist viel größer.
+* **Erweitertes Monitoring und Logging**: das Ökosystem 
     * **Prometheus & Grafana**: Eine Einführung in das Pull-basierte Monitoring und die Visualisierung von Metriken.
     * **ELK Stack**: Grundlagen zur zentralisierten Log-Verarbeitung mit Elasticsearch, Logstash und Kibana.
 
