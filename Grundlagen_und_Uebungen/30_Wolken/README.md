@@ -1,4 +1,3 @@
----
 
 ### Warum Google Cloud Platform (GCP)?
 
@@ -9,7 +8,6 @@ GCP bietet mehrere entscheidende Vorteile, die es besonders schülerfreundlich m
 * **Intuitive Benutzeroberfläche**: Die GCP-Konsole ist bekannt für ihr klares und übersichtliches Design. Sie ist oft einfacher zu navigieren als die von AWS oder Azure, was den Einstieg in die Materie erleichtert.
 * **Integration mit Google-Tools**: Da viele Schüler bereits mit Google-Produkten wie Google Drive und Google Docs vertraut sind, fühlen sie sich im GCP-Ökosystem oft schneller wohl. Die Integration ist nahtlos und vereinfacht den Workflow.
 
----
 
 ### Vergleich mit anderen Anbietern
 
