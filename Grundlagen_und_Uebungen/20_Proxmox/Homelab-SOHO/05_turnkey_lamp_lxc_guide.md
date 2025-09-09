@@ -383,7 +383,7 @@ Die Erstellung eines LAMP-Stack LXC-Containers mit TurnKey Linux auf Proxmox VE 
 
 Dieses Setup ist ressourcenschonend und ideal für HomeLabs mit begrenzter Hardware. Teste die Konfiguration in einer nicht-produktiven Umgebung, um Probleme zu vermeiden.
 
-**Nächste Schritte**: Möchtest du eine detaillierte Anleitung zur Installation von WordPress/Nextcloud, Konfiguration von Let’s Encrypt für HTTPS oder Integration mit Zabbix für Monitoring?
+**Nächste Schritte**: Möchtest du eine detaillierte Anleitung zur Installation von WordPress/Nextcloud, Konfiguration von Let’s Encrypt für HTTPS oder Integration mit Check_MK für Monitoring?
 
 **Quellen**:
 - TurnKey Linux-Dokumentation: https://www.turnkeylinux.org/lampstack
