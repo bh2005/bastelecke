@@ -1,7 +1,6 @@
 ## Directory Tree for SDN
 
 - **SDN**
-- SDN
   - [00_Übersicht_SDN.md](00_%C3%9Cbersicht_SDN.md)
   - [Modul00_Grundlagen.md](Modul00_Grundlagen.md)
   - [Modul01_TCP.md](Modul01_TCP.md)
