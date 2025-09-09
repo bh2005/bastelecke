@@ -2,7 +2,7 @@
 
 ## Directory Tree for Grundlagen_und_Uebungen
 
-```
+
 Grundlagen_und_Uebungen
 ├── 01_Linux
 │   ├── [01_linux_kommandozeile_anleitung.md](01_Linux/01_linux_kommandozeile_anleitung.md)
