@@ -3,30 +3,32 @@ import argparse
 import urllib.parse
 import sys
 
-def generate_tree_lines(start_path, prefix=''):
+def generate_tree_lines(start_path, relative_to):
     """
-    Generates a list of tuples with tree data: (prefix, item, is_directory, full_path)
+    Generates a list of strings for a Markdown list tree, with correct indentation and links.
     """
     tree_lines = []
-    contents = sorted(os.listdir(start_path))
     
-    for i, item in enumerate(contents):
-        path = os.path.join(start_path, item)
-        is_last = (i == len(contents) - 1)
-        is_dir = os.path.isdir(path)
+    # Walk the directory tree to get all paths and files
+    for root, dirs, files in os.walk(start_path):
+        # Calculate the indentation level
+        level = root.replace(start_path, '').count(os.sep)
+        indentation = "  " * level
         
-        if is_last:
-            line_prefix = f"{prefix}└── "
-            new_prefix = f"{prefix}    "
-        else:
-            line_prefix = f"{prefix}├── "
-            new_prefix = f"{prefix}│   "
+        # Add the directory to the tree
+        dir_name = os.path.basename(root)
+        if dir_name: # Don't list the base directory itself here
+            tree_lines.append(f"{indentation}- {dir_name}")
             
-        tree_lines.append((line_prefix, item, is_dir, path))
+        # Add the files to the tree with correct indentation and links
+        for f in sorted(files):
+            file_path = os.path.join(root, f)
+            rel_path = os.path.relpath(file_path, relative_to)
+            encoded_path = urllib.parse.quote(rel_path.replace("\\", "/"))
             
-        if is_dir:
-            sub_tree = generate_tree_lines(path, new_prefix)
-            tree_lines.extend(sub_tree)
+            # The indentation for files is one level deeper than the directory
+            file_indentation = "  " * (level + 1)
+            tree_lines.append(f"{file_indentation}- [{f}]({encoded_path})")
             
     return tree_lines
 
@@ -65,7 +67,6 @@ Usage Examples:
     output_file = args.output
     main_title = args.title
     
-    # Get the directory of the output file for relative path calculation
     output_dir = os.path.dirname(os.path.abspath(output_file))
     
     if not os.path.isdir(target_dir):
@@ -74,33 +75,14 @@ Usage Examples:
     
     print(f"Generating directory tree for '{target_dir}'...")
     
-    tree_data = generate_tree_lines(target_dir)
+    tree_lines = generate_tree_lines(target_dir, output_dir)
     base_dir_name = os.path.basename(target_dir)
     
-    linked_tree_lines = []
-    
-    # Process the top-level directory separately
-    linked_tree_lines.append(base_dir_name)
-    
-    # Process the rest of the tree data to generate lines with correct relative links
-    for line_prefix, item, is_dir, full_path in tree_data:
-        display_name = item
-        
-        # Only create links for files, not directories
-        if not is_dir:
-            # The key fix: Calculate the relative path from the output file's directory
-            # to the target file's directory, and then join with the item name.
-            rel_path_to_link = os.path.relpath(full_path, output_dir)
-            encoded_path = urllib.parse.quote(rel_path_to_link.replace("\\", "/"))
-            display_name = f"[{item}]({encoded_path})"
-        
-        linked_tree_lines.append(f"{line_prefix}{display_name}")
-    
+    # Construct the final Markdown content
     md_content = f"# {main_title}\n\n"
     md_content += f"## Directory Tree for {base_dir_name}\n\n"
-    md_content += "```\n"
-    md_content += "\n".join(linked_tree_lines)
-    md_content += "\n```\n"
+    md_content += f"- **{base_dir_name}**\n" # The base directory as a bold list item
+    md_content += "\n".join(tree_lines)
     
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(md_content)
