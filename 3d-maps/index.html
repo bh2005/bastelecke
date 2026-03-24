@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NagVis 3D - Deep Mining Monitor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { 
+            margin: 0; padding: 0; height: 100vh; width: 100vw; 
+            overflow: hidden; background: #000; color: #13d38e; 
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+        }
+
+        #app { display: flex; flex-direction: column; height: 100vh; }
+
+        #header { 
+            height: 50px; background: #111; border-bottom: 1px solid #333; 
+            display: flex; align-items: center; padding: 0 20px; flex-shrink: 0; 
+            position: relative; z-index: 100;
+        }
+
+        .logo { 
+            background: #13d38e; color: #000; padding: 2px 8px; 
+            font-weight: bold; margin-right: 15px; border-radius: 2px;
+        }
+
+        .info { font-size: 11px; color: #555; font-family: monospace; }
+
+        #render-area { flex: 1; position: relative; width: 100%; overflow: hidden; background: #050505; }
+
+        /* UI Panels */
+        .panel {
+            position: absolute; background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #13d38e33; padding: 12px; border-radius: 4px; z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+
+        #alarm { top: 20px; right: 20px; border-color: #ff3333; color: #ff3333; animation: blink 1s infinite; }
+        #controls { bottom: 20px; right: 20px; width: 220px; }
+        #controls label { display: block; font-size: 10px; margin-bottom: 5px; color: #888; text-transform: uppercase; }
+
+        #event-log {
+            position: absolute; bottom: 20px; left: 20px; width: 300px; height: 160px;
+            background: rgba(5, 10, 5, 0.8); border: 1px solid #13d38e22;
+            font-family: monospace; font-size: 10px; padding: 10px; overflow: hidden; z-index: 5;
+        }
+
+        .log-entry { margin-bottom: 5px; border-left: 2px solid #13d38e; padding-left: 8px; animation: slideIn 0.3s ease-out; }
+        .log-alert { border-left-color: #ff3333; color: #ffaaaa; }
+
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+        #gluck-auf { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 10vw; font-weight: 900; opacity: 0.02; pointer-events: none; letter-spacing: 30px; white-space: nowrap;
+        }
+
+        .btn-group { margin-top: 10px; display: flex; gap: 8px; }
+        button { 
+            flex: 1; background: #111; border: 1px solid #13d38e; color: #13d38e; 
+            cursor: pointer; padding: 6px; font-size: 10px; text-transform: uppercase; transition: 0.2s;
+        }
+        button:hover { background: #13d38e; color: #000; }
+
+        input[type=range] { width: 100%; accent-color: #13d38e; cursor: pointer; }
+
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        
+        canvas { display: block; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <header id="header">
+        <div class="logo">NAGVIS 3D</div>
+        <div class="info">PROJECT: NAGVIS-KURZ-VOR-2 // LIVE TOPOLOGY</div>
+    </header>
+
+    <div id="render-area">
+        <div id="gluck-auf">GLÜCK AUF!</div>
+
+        <div id="alarm" class="panel">
+            <strong>!!! CRITICAL ALERT !!!</strong><br>
+            NVDCT: Connection Timeout (Access_02)
+        </div>
+
+        <div id="event-log"></div>
+
+        <div id="controls" class="panel">
+            <label>Data-Stream Velocity</label>
+            <input type="range" id="speed-slider" min="1" max="20" value="5">
+            <div class="btn-group">
+                <button onclick="zoomTo('surface')">Surface</button>
+                <button onclick="zoomTo('depth')">Deep Core</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * NAGVIS 3D - CORE ENGINE
+ * Logic: Auto-plots NVDCT Topologies into a 3D Mining Shaft
+ */
+window.addEventListener('load', () => {
+    const container = document.getElementById('render-area');
+    if (typeof THREE === 'undefined') {
+        container.innerHTML = "<div style='color:red; padding:20px;'>Error: Three.js could not be loaded.</div>";
+        return;
+    }
+
+    // --- 1. SCENE SETUP ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    // Light
+    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambient);
+    const pLight = new THREE.PointLight(0x13d38e, 1.5, 100);
+    pLight.position.set(20, 30, 20);
+    scene.add(pLight);
+
+    // --- 2. ENVIRONMENT: THE SHAFT ---
+    const yLevels = [12, 0, -12]; // Ground, Level 1, Level 2
+    
+    // Vertical Shaft Wireframe
+    const shaftGeo = new THREE.CylinderGeometry(10, 10, 45, 32, 1, true);
+    const shaftMat = new THREE.MeshBasicMaterial({ color: 0x13d38e, wireframe: true, transparent: true, opacity: 0.05 });
+    scene.add(new THREE.Mesh(shaftGeo, shaftMat));
+
+    // Floor Grids
+    const floorGeo = new THREE.CircleGeometry(35, 32);
+    const floorMat = new THREE.MeshBasicMaterial({ color: 0x13d38e, transparent: true, opacity: 0.06, side: THREE.DoubleSide });
+    
+    yLevels.forEach(y => {
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = Math.PI / 2;
+        floor.position.y = y;
+        scene.add(floor);
+    });
+
+    // --- 3. DATA: NVDCT MOCKUP ---
+    const nvdctData = {
+        "objects": {
+            "Core_SW1": { "name": "Core-Switch-01" },
+            "FW_01": { "name": "Firewall-Edge" },
+            "Access_01": { "name": "Access-L1-A" },
+            "Access_02": { "name": "Access-L2-B" },
+            "Storage_V": { "name": "Vault-Storage" },
+            "UPS_System": { "name": "UPS-Monitor" }
+        },
+        "connections": [
+            [["Core_SW1"], ["FW_01"], { "line_config": { "color": "green" } }],
+            [["Core_SW1"], ["Access_01"], { "line_config": { "color": "green" } }],
+            [["Core_SW1"], ["Access_02"], { "line_config": { "color": "red" } }],
+            [["Core_SW1"], ["Storage_V"], { "line_config": { "color": "green" } }],
+            [["Access_01"], ["UPS_System"], { "line_config": { "color": "green" } }]
+        ]
+    };
+
+    // --- 4. ENGINE: PLOTTING ---
+    const sparks = [];
+    const nodePositions = {};
+    const objectIds = Object.keys(nvdctData.objects);
+    let flowSpeed = 1.0;
+
+    // Distribute Nodes
+    objectIds.forEach((id, i) => {
+        const y = yLevels[i % yLevels.length];
+        const angle = i * (Math.PI * 2 / 3) + (y * 0.1); 
+        const dist = 15 + (i * 2);
+        
+        const pos = new THREE.Vector3(Math.cos(angle) * dist, y, Math.sin(angle) * dist);
+        nodePositions[id] = pos;
+
+        // Host Visual
+        const hostMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.8, 1.8, 1.8),
+            new THREE.MeshStandardMaterial({ 
+                color: (id === "Access_02") ? 0xff3333 : 0x13d38e, 
+                emissive: (id === "Access_02") ? 0xff3333 : 0x13d38e, 
+                emissiveIntensity: 0.6 
+            })
+        );
+        hostMesh.position.copy(pos);
+        scene.add(hostMesh);
+    });
+
+    // Draw Connections & Traffic
+    nvdctData.connections.forEach(conn => {
+        const start = nodePositions[conn[0][0]];
+        const end = nodePositions[conn[1][0]];
+        const color = (conn[2]?.line_config?.color === "red") ? 0xff4444 : 0x13d38e;
+
+        if (start && end) {
+            // Cable
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([start, end]);
+            scene.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.5 })));
+
+            // Animated Spark Particles
+            for(let i=0; i<6; i++) {
+                const spark = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: color }));
+                sparks.push({ mesh: spark, start, end, prog: Math.random(), speed: 0.002 + Math.random() * 0.006 });
+                scene.add(spark);
+            }
+        }
+    });
+
+    // --- 5. CAMERA & ANIMATION ---
+    camera.position.set(45, 30, 45);
+    camera.lookAt(0, -5, 0);
+
+    window.zoomTo = (target) => {
+        if(target === 'surface') {
+            camera.position.set(45, 30, 45);
+        } else {
+            camera.position.set(20, -10, 20);
+        }
+    };
+
+    document.getElementById('speed-slider').oninput = (e) => { flowSpeed = e.target.value / 5; };
+
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        // Slow Orbit
+        const t = Date.now() * 0.00015;
+        camera.position.x = Math.sin(t) * 60;
+        camera.position.z = Math.cos(t) * 60;
+        camera.lookAt(0, -5, 0);
+
+        // Move Sparks
+        sparks.forEach(p => {
+            p.prog += p.speed * flowSpeed;
+            if(p.prog > 1) p.prog = 0;
+            p.mesh.position.lerpVectors(p.start, p.end, p.prog);
+            // Pulsing effect
+            const s = 0.6 + Math.sin(Date.now() * 0.01) * 0.4;
+            p.mesh.scale.set(s, s, s);
+        });
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- 6. LOG SIMULATOR ---
+    const log = document.getElementById('event-log');
+    const msgs = ["Traffic stable", "Node check successful", "Latency: 2ms", "Indexing depth...", "Sohle 2 secure"];
+    
+    setInterval(() => {
+        const entry = document.createElement('div');
+        const isErr = Math.random() > 0.85;
+        const host = objectIds[Math.floor(Math.random()*objectIds.length)];
+        entry.className = isErr ? 'log-entry log-alert' : 'log-entry';
+        entry.innerText = `[${new Date().toLocaleTimeString()}] ${host}: ${isErr ? 'PACKET LOSS DETECTED' : msgs[Math.floor(Math.random()*msgs.length)]}`;
+        log.prepend(entry);
+        if(log.children.length > 9) log.lastChild.remove();
+    }, 2000);
+
+    // Resize
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+});
+</script>
+
+</body>
+</html>
