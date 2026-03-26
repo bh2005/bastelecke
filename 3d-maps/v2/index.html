@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NagVis 3D - NVDCT Advanced Monitoring</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root { --neon-green: #13d38e; --alert-red: #ff3200; --bg-dark: #050a05; }
+        
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100vh; overflow: hidden; background: #000; color: var(--neon-green); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        /* HUD & UI */
+        .hud { position: absolute; z-index: 10; pointer-events: none; width: 100%; height: 100%; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+        .panel { pointer-events: auto; background: rgba(0, 10, 5, 0.85); border: 1px solid rgba(19, 211, 142, 0.3); padding: 15px; border-radius: 4px; backdrop-filter: blur(5px); }
+        
+        #header { display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--neon-green); }
+        .logo { font-weight: bold; letter-spacing: 2px; }
+        
+        #bottom-row { display: flex; justify-content: space-between; align-items: flex-end; }
+        #event-log { width: 320px; height: 120px; font-family: monospace; font-size: 11px; overflow: hidden; opacity: 0.8; }
+        
+        /* Side-Panel Inspector */
+        #inspector {
+            position: absolute; top: 80px; right: -400px; width: 320px; height: calc(100vh - 120px);
+            background: rgba(0, 5, 2, 0.95); border-left: 2px solid var(--neon-green);
+            transition: right 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            z-index: 100; padding: 20px; pointer-events: auto;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.8);
+        }
+        #inspector.open { right: 0; }
+        .metric-row { display: flex; justify-content: space-between; padding: 8px; background: rgba(19, 211, 142, 0.05); margin-bottom: 5px; font-size: 13px; border-radius: 2px; }
+        .close-btn { cursor: pointer; color: var(--alert-red); font-size: 11px; text-decoration: underline; margin-bottom: 15px; display: inline-block; }
+
+        button { background: #111; border: 1px solid var(--neon-green); color: var(--neon-green); padding: 6px 12px; cursor: pointer; font-size: 10px; transition: 0.2s; }
+        button:hover { background: var(--neon-green); color: #000; }
+        input[type=range] { width: 100%; accent-color: var(--neon-green); }
+    </style>
+</head>
+<body>
+
+<div class="hud">
+    <div id="header" class="panel">
+        <div class="logo">NAGVIS 3D <span style="color:#666">| DEEP MINING TOPOLOGY</span></div>
+        <div style="font-size: 10px;">ENGINE_STATUS: <span style="color:var(--neon-green)">ACTIVE</span></div>
+    </div>
+
+    <div id="bottom-row">
+        <div id="event-log" class="panel">
+            <div style="color:#555; margin-bottom:5px;">SYSTEM_MESSAGES:</div>
+            <div id="log-content"></div>
+        </div>
+        <div id="controls" class="panel" style="width: 220px;">
+            <label style="font-size: 10px;">SIM_FLOW_SPEED</label>
+            <input type="range" id="flow-slider" min="0" max="100" value="30">
+            <div style="margin-top: 10px; display: flex; gap: 5px;">
+                <button onclick="app.resetCamera()">AUTO_ORBIT</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="inspector">
+    <span class="close-btn" onclick="app.closeInspector()">[ CLOSE_INSPECTOR ]</span>
+    <div id="ins-header">
+        <h2 id="ins-label" style="margin: 0; color: white;">NODE_NAME</h2>
+        <code id="ins-id" style="font-size: 10px; color: var(--neon-green);">ID: ---</code>
+    </div>
+    <hr style="border: 0; border-top: 1px solid #222; margin: 20px 0;">
+    <div id="ins-content"></div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script>
+/**
+ * NVDCT MOCK DATA (Struktur für Topologie)
+ */
+const nvdctData = {
+    nodes: [
+        { id: "core_01", type: "switch", level: 15, label: "CORE-SW-01", status: "ok" },
+        { id: "dist_01", type: "switch", level: 0, label: "DIST-SHAFT-ALPHA", status: "ok" },
+        { id: "dist_02", type: "switch", level: 0, label: "DIST-SHAFT-BETA", status: "ok" },
+        { id: "ap_01", type: "ap", level: -15, label: "WIFI-SOHLE-1", status: "ok" },
+        { id: "ap_02", type: "ap", level: -15, label: "WIFI-SOHLE-2", status: "alert" }
+    ],
+    links: [
+        { source: "core_01", target: "dist_01", status: "ok" },
+        { source: "core_01", target: "dist_02", status: "ok" },
+        { source: "dist_01", target: "ap_01", status: "ok" },
+        { source: "dist_02", target: "ap_02", status: "alert" }
+    ]
+};
+
+class Network3D {
+    constructor() {
+        this.container = document.getElementById('canvas-container');
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        
+        this.nodePositions = {};
+        this.sparks = [];
+        this.alertLinks = [];
+        this.flowSpeed = 0.3;
+        this.autoOrbit = true;
+
+        this.init();
+    }
+
+    init() {
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.container.appendChild(this.renderer.domElement);
+
+        this.camera.position.set(60, 40, 60);
+
+        // Licht
+        const pLight = new THREE.PointLight(0x13d38e, 2, 150);
+        pLight.position.set(20, 50, 20);
+        this.scene.add(pLight, new THREE.AmbientLight(0xffffff, 0.2));
+
+        // Schacht Ebenen
+        [15, 0, -15].forEach(y => {
+            const grid = new THREE.GridHelper(80, 20, 0x13d38e, 0x051a05);
+            grid.position.y = y;
+            grid.material.opacity = 0.1;
+            grid.material.transparent = true;
+            this.scene.add(grid);
+        });
+
+        this.processData();
+        this.setupEventListeners();
+        this.animate();
+    }
+
+    createNodeMesh(node) {
+        const group = new THREE.Group();
+        let mainMesh;
+
+        if (node.type === 'switch') {
+            const geo = new THREE.BoxGeometry(4, 0.8, 2.5);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x13d38e, emissiveIntensity: 0.1 });
+            mainMesh = new THREE.Mesh(geo, mat);
+            // Kleine LEDs
+            for(let i=0; i<3; i++) {
+                const led = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), new THREE.MeshBasicMaterial({color: 0x13d38e}));
+                led.position.set(-1.2 + (i*0.5), 0, 1.26);
+                mainMesh.add(led);
+            }
+        } else {
+            const geo = new THREE.CylinderGeometry(1.5, 1.5, 0.4, 16);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0x00ccff, emissiveIntensity: 0.2 });
+            mainMesh = new THREE.Mesh(geo, mat);
+        }
+
+        group.add(mainMesh);
+        group.userData = node; // Daten für Raycaster
+        return group;
+    }
+
+    processData() {
+        // Nodes platzieren
+        nvdctData.nodes.forEach((node, i) => {
+            const angle = (i / 3) * Math.PI * 2; // Gruppierung pro Ebene
+            const radius = 25;
+            const pos = new THREE.Vector3(Math.cos(angle) * radius, node.level, Math.sin(angle) * radius);
+            
+            const mesh = this.createNodeMesh(node);
+            mesh.position.copy(pos);
+            this.scene.add(mesh);
+            this.nodePositions[node.id] = pos;
+        });
+
+        // Links & Alarme
+        nvdctData.links.forEach(link => {
+            const start = this.nodePositions[link.source];
+            const end = this.nodePositions[link.target];
+            if(!start || !end) return;
+
+            const isAlert = link.status === 'alert';
+            const lineMat = new THREE.LineBasicMaterial({ 
+                color: isAlert ? 0xff3200 : 0x333333, 
+                transparent: true, 
+                opacity: isAlert ? 0.8 : 0.3 
+            });
+            const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([start, end]), lineMat);
+            this.scene.add(line);
+            if(isAlert) this.alertLinks.push(line);
+
+            // Sparks
+            const spark = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: isAlert ? 0xff3200 : 0x13d38e }));
+            this.scene.add(spark);
+            this.sparks.push({ mesh: spark, start, end, progress: Math.random() });
+        });
+    }
+
+    setupEventListeners() {
+        window.addEventListener('click', (e) => {
+            this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const hits = this.raycaster.intersectObjects(this.scene.children, true);
+            
+            if(hits.length > 0) {
+                let obj = hits[0].object;
+                while(obj.parent && !obj.userData.id) obj = obj.parent;
+                if(obj.userData.id) this.openInspector(obj.userData);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.getElementById('flow-slider').oninput = (e) => this.flowSpeed = e.target.value / 100;
+    }
+
+    openInspector(data) {
+        const ins = document.getElementById('inspector');
+        document.getElementById('ins-label').innerText = data.label;
+        document.getElementById('ins-id').innerText = `NODE_ID: ${data.id}`;
+        
+        document.getElementById('ins-content').innerHTML = `
+            <div class="metric-row"><span>Status</span><b style="color:${data.status === 'alert' ? 'var(--alert-red)' : 'var(--neon-green)'}">${data.status.toUpperCase()}</b></div>
+            <div class="metric-row"><span>Type</span><b>${data.type.toUpperCase()}</b></div>
+            <div class="metric-row"><span>Load</span><b>${Math.floor(Math.random()*100)}%</b></div>
+            <div class="metric-row"><span>Uptime</span><b>12d 4h 22m</b></div>
+        `;
+        ins.classList.add('open');
+        this.logMsg("Selected: " + data.label);
+    }
+
+    closeInspector() { document.getElementById('inspector').classList.remove('open'); }
+    
+    resetCamera() { this.autoOrbit = !this.autoOrbit; }
+
+    logMsg(msg) {
+        const c = document.getElementById('log-content');
+        const d = document.createElement('div');
+        d.innerHTML = `<span style="color:#555">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+        c.prepend(d);
+    }
+
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        const time = Date.now() * 0.001;
+
+        if(this.autoOrbit) {
+            this.camera.position.x = Math.sin(time * 0.2) * 80;
+            this.camera.position.z = Math.cos(time * 0.2) * 80;
+            this.camera.lookAt(0, -5, 0);
+        }
+
+        this.alertLinks.forEach(l => {
+            l.material.opacity = 0.3 + Math.abs(Math.sin(time * 5)) * 0.7;
+        });
+
+        this.sparks.forEach(s => {
+            s.progress += 0.005 * (this.flowSpeed * 10);
+            if(s.progress > 1) s.progress = 0;
+            s.mesh.position.lerpVectors(s.start, s.end, s.progress);
+        });
+
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+const app = new Network3D();
+</script>
+</body>
+</html>

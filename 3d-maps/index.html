@@ -3,227 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NagVis 3D - WiFi Heatmap & Asset Tracking</title>
+    <title>NagVis 3D | Multi-Level Topology</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
-    <style>
-        * { box-sizing: border-box; }
-        body, html { margin: 0; padding: 0; height: 100vh; overflow: hidden; background: #000; color: #13d38e; font-family: 'Segoe UI', sans-serif; }
-        #app { display: flex; flex-direction: column; height: 100vh; }
-        #header { height: 50px; background: #111; border-bottom: 1px solid #333; display: flex; align-items: center; padding: 0 20px; z-index: 100; }
-        .logo { background: #13d38e; color: #000; padding: 2px 8px; font-weight: bold; margin-right: 15px; }
-        #render-area { flex: 1; position: relative; overflow: hidden; background: #050505; }
-        
-        /* Label Styling */
-        .label { color: #13d38e; font-family: monospace; font-size: 9px; padding: 2px 4px; background: rgba(0, 10, 0, 0.8); border: 1px solid #13d38e44; pointer-events: none; }
-        .label-lader { color: #ffcc00; border-color: #ffcc0066; font-weight: bold; font-size: 10px; }
-
-        .panel { position: absolute; background: rgba(0, 0, 0, 0.85); border: 1px solid #13d38e33; padding: 12px; border-radius: 4px; z-index: 20; backdrop-filter: blur(4px); }
-        #controls { bottom: 20px; right: 20px; width: 280px; }
-        #event-log { position: absolute; bottom: 20px; left: 20px; width: 320px; height: 150px; background: rgba(5, 10, 5, 0.8); border: 1px solid #13d38e22; font-family: monospace; font-size: 10px; padding: 10px; overflow: hidden; z-index: 25; }
-        .btn-group { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        button { background: #111; border: 1px solid #13d38e; color: #13d38e; cursor: pointer; padding: 8px; font-size: 9px; text-transform: uppercase; }
-        button.active { background: #13d38e; color: #000; }
-        
-        /* Legend */
-        #legend { top: 70px; left: 20px; font-size: 10px; }
-        .leg-item { display: flex; align-items: center; margin-bottom: 5px; }
-        .box { width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="app">
-    <header id="header">
-        <div class="logo">NAGVIS 3D</div>
-        <div class="info">SOHLE MONITORING // RADIO PROPAGATION HEATMAP</div>
-    </header>
+    <div class="hud">
+        <header id="header" class="panel">
+            <div class="logo">NAGVIS 3D <span class="subtitle">| ARCHITECTURE_VIEW</span></div>
+            
+            <div id="mode-selector">
+                <select id="view-mode">
+                    <option value="mine">MODE: DEEP_MINING (Down)</option>
+                    <option value="building">MODE: HIGH_RISE (Up)</option>
+                </select>
+            </div>
 
-    <div id="render-area">
-        <div id="legend" class="panel">
-            <div style="margin-bottom: 8px; font-weight: bold; color: #888;">FUNK-ABDECKUNG</div>
-            <div class="leg-item"><div class="box" style="background: rgba(0, 255, 100, 0.5);"></div> Signal Stark (OK)</div>
-            <div class="leg-item"><div class="box" style="background: rgba(255, 50, 0, 0.3);"></div> Signal Schwach (Edge)</div>
+            <div class="status">ENGINE: <span class="active-glow">ONLINE</span></div>
+        </header>
+
+        <div id="search-container">
+            <input type="text" id="search-input" placeholder="SEARCH_NODE_ID..." autocomplete="off">
+            <div id="search-results"></div>
         </div>
 
-        <div id="event-log"></div>
-        
-        <div id="controls" class="panel">
-            <div class="btn-group">
-                <button onclick="changeView('surface', this)" class="active">Oberfläche</button>
-                <button onclick="changeView('sole1', this)">Sohle 1</button>
-                <button onclick="changeView('sole2', this)">Sohle 2</button>
-                <button onclick="changeView('follow', this)" style="border-color:#ffcc00; color:#ffcc00;">Lader 1 Live</button>
+        <div id="bottom-row">
+            <div id="event-log" class="panel">
+                <div class="log-header">SYSTEM_LOG:</div>
+                <div id="log-content"></div>
             </div>
-            <div style="margin-top: 12px;">
-                <input type="range" id="speed-slider" min="1" max="25" value="7">
+            <div id="controls" class="panel">
+                <label>FLOW_SPEED</label>
+                <input type="range" id="flow-slider" min="0" max="100" value="35">
+                <button id="orbit-btn">TOGGLE_ORBIT</button>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-window.addEventListener('load', () => {
-    const container = document.getElementById('render-area');
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
+    <div id="inspector">
+        <span class="close-btn" id="close-inspector">[ CLOSE_X ]</span>
+        <div id="ins-header">
+            <h2 id="ins-label">NODE_NAME</h2>
+            <code id="ins-id">ID: ---</code>
+        </div>
+        <hr style="border:0; border-top:1px solid #13d38e33; margin:20px 0;">
+        <div id="ins-content"></div>
+    </div>
 
-    const labelRenderer = new THREE.CSS2DRenderer();
-    labelRenderer.setSize(container.clientWidth, container.clientHeight);
-    labelRenderer.domElement.style.position = 'absolute';
-    labelRenderer.domElement.style.top = '0px';
-    labelRenderer.domElement.style.pointerEvents = 'none';
-    container.appendChild(labelRenderer.domElement);
+    <div id="ins-actions" style="margin-top: 20px;">
+        <button id="view-2d-btn" style="width: 100%; border-color: #00ccff; color: #00ccff;">
+        SWITCH TO 2D ROOMPLAN
+        </button>
+    </div>
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-    const light = new THREE.PointLight(0x13d38e, 1.5, 150);
-    light.position.set(20, 50, 20);
-    scene.add(light);
+    <div id="canvas-container"></div>
 
-    const yLevels = { surface: 15, sole1: 0, sole2: -15 };
-    const nodePositions = {};
-    const sparks = [];
-    let flowSpeed = 1.0;
-
-    // --- HEATMAP GENERATOR ---
-    function createHeatmap(pos) {
-        // Innerer Kern (Grün - Stark)
-        const innerGeo = new THREE.SphereGeometry(12, 32, 32);
-        const innerMat = new THREE.MeshBasicMaterial({ color: 0x00ff64, transparent: true, opacity: 0.1, side: THREE.BackSide });
-        const inner = new THREE.Mesh(innerGeo, innerMat);
-        inner.position.copy(pos);
-        scene.add(inner);
-
-        // Äußerer Rand (Rot - Schwach)
-        const outerGeo = new THREE.SphereGeometry(22, 32, 32);
-        const outerMat = new THREE.MeshBasicMaterial({ color: 0xff3200, transparent: true, opacity: 0.04, side: THREE.BackSide });
-        const outer = new THREE.Mesh(outerGeo, outerMat);
-        outer.position.copy(pos);
-        scene.add(outer);
-    }
-
-    // --- INFRASTRUKTUR ---
-    let kippstelleCounter = 1;
-    Object.keys(yLevels).forEach((level, idx) => {
-        const y = yLevels[level];
-        
-        // Floors
-        const floor = new THREE.Mesh(new THREE.CircleGeometry(55, 64), new THREE.MeshStandardMaterial({ color: 0x051a10, transparent: true, opacity: 0.4 }));
-        floor.rotation.x = -Math.PI/2; floor.position.y = y; scene.add(floor);
-        const grid = new THREE.GridHelper(110, 22, 0x13d38e, 0x0a2218);
-        grid.position.y = y + 0.05; grid.material.opacity = 0.1; grid.material.transparent = true; scene.add(grid);
-
-        // Switch
-        const swPos = new THREE.Vector3(0, y + 1, 0);
-        createNode(swPos, 0x13d38e, 2.5, `SW-${level.toUpperCase()}`);
-
-        // APs + Heatmap
-        for(let i=0; i<3; i++) {
-            const angle = (i / 3) * Math.PI * 2 + (idx * 0.7);
-            const apPos = new THREE.Vector3(Math.cos(angle) * 32, y + 1, Math.sin(angle) * 32);
-            createNode(apPos, 0x00ffcc, 1, `Kippstelle ${kippstelleCounter++}`);
-            createLink(swPos, apPos, 0x13d38e);
-            createHeatmap(apPos); // Heatmap Aura hinzufügen
-        }
-    });
-
-    function createNode(pos, color, size, labelText) {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: color }));
-        mesh.position.copy(pos);
-        scene.add(mesh);
-        const div = document.createElement('div');
-        div.className = 'label';
-        div.textContent = labelText;
-        const label = new THREE.CSS2DObject(div);
-        label.position.set(0, size + 1, 0);
-        mesh.add(label);
-    }
-
-    function createLink(start, end, color) {
-        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([start, end]), new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.3 })));
-        for(let i=0; i < 3; i++) {
-            const s = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({ color: color }));
-            sparks.push({ mesh: s, start, end, prog: Math.random(), speed: 0.002 + Math.random()*0.003 });
-            scene.add(s);
-        }
-    }
-
-    // --- ASSETS ---
-    const assets = [];
-    const assetColors = [0xffcc00, 0xff8800, 0x00ccff];
-    Object.values(yLevels).forEach((y, i) => {
-        const group = new THREE.Group();
-        group.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 2), new THREE.MeshStandardMaterial({ color: assetColors[i] })));
-        scene.add(group);
-        const div = document.createElement('div');
-        div.className = 'label label-lader';
-        div.textContent = `LADER 0${i+1}`;
-        const label = new THREE.CSS2DObject(div);
-        label.position.set(0, 3, 0);
-        group.add(label);
-        const r = [new THREE.Vector3(30, y, 30), new THREE.Vector3(-30, y, 20), new THREE.Vector3(-25, y, -30), new THREE.Vector3(25, y, -25)];
-        assets.push({ mesh: group, route: r, targetIdx: 0 });
-    });
-
-    // --- ANIMATION & CAMERA ---
-    let currentView = 'surface';
-    window.changeView = (v, btn) => {
-        currentView = v;
-        document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-    };
-
-    document.getElementById('speed-slider').oninput = (e) => flowSpeed = e.target.value / 7;
-
-    function animate() {
-        requestAnimationFrame(animate);
-
-        assets.forEach(a => {
-            const target = a.route[a.targetIdx];
-            a.mesh.position.lerp(target, 0.01 * flowSpeed);
-            a.mesh.lookAt(target);
-            if(a.mesh.position.distanceTo(target) < 2) a.targetIdx = (a.targetIdx + 1) % a.route.length;
-        });
-
-        const vConfig = {
-            surface: { pos: [90, 70, 90], look: [0, 0, 0] },
-            sole1: { pos: [55, 20, 55], look: [0, 0, 0] },
-            sole2: { pos: [55, -5, 55], look: [0, -15, 0] }
-        };
-
-        if(currentView === 'follow') {
-            const lead = assets[1].mesh;
-            const offset = new THREE.Vector3(-25, 12, 0).applyQuaternion(lead.quaternion);
-            camera.position.lerp(lead.position.clone().add(offset), 0.1);
-            camera.lookAt(lead.position);
-        } else {
-            const conf = vConfig[currentView];
-            camera.position.lerp(new THREE.Vector3(...conf.pos), 0.05);
-            camera.lookAt(new THREE.Vector3(...conf.look));
-        }
-
-        sparks.forEach(p => {
-            p.prog += p.speed * flowSpeed;
-            if(p.prog > 1) p.prog = 0;
-            p.mesh.position.lerpVectors(p.start, p.end, p.prog);
-        });
-
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);
-    }
-    animate();
-
-    function logMsg(m) {
-        const e = document.createElement('div'); e.className = 'log-entry';
-        e.innerText = `[${new Date().toLocaleTimeString()}] ${m}`;
-        const l = document.getElementById('event-log'); l.prepend(e);
-        if(l.children.length > 6) l.lastChild.remove();
-    }
-    setInterval(() => logMsg("SNR Kippstelle " + (Math.floor(Math.random()*8)+1) + ": OK"), 8000);
-});
-</script>
+    <script src="app.js"></script>
 </body>
 </html>

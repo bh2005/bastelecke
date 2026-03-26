@@ -1,0 +1,61 @@
+:root {
+    --neon: #13d38e;
+    --alert: #ff3200;
+    --panel-bg: rgba(0, 10, 5, 0.85);
+}
+
+* { box-sizing: border-box; }
+body, html { 
+    margin: 0; padding: 0; height: 100vh; overflow: hidden; 
+    background: #000; color: var(--neon); font-family: 'Courier New', monospace; 
+}
+
+#canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+.panel { 
+    pointer-events: auto; background: var(--panel-bg); 
+    border: 1px solid rgba(19, 211, 142, 0.3); padding: 15px; 
+    backdrop-filter: blur(5px); 
+}
+
+/* HUD & SEARCH */
+.hud { position: absolute; z-index: 10; pointer-events: none; width: 100%; height: 100%; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+
+#search-container { position: absolute; top: 90px; right: 20px; width: 250px; pointer-events: auto; }
+#search-input { width: 100%; background: rgba(0,0,0,0.8); border: 1px solid var(--neon); color: var(--neon); padding: 8px; outline: none; }
+#search-results { background: rgba(0,0,0,0.9); border: 1px solid #333; display: none; max-height: 200px; overflow-y: auto; }
+.search-item { padding: 8px; cursor: pointer; font-size: 12px; border-bottom: 1px solid #222; }
+.search-item:hover { background: var(--neon); color: #000; }
+
+/* INSPECTOR */
+#inspector {
+    position: absolute; top: 0; right: -400px; width: 350px; height: 100vh;
+    background: rgba(0, 5, 2, 0.98); border-left: 2px solid var(--neon);
+    transition: right 0.4s ease; z-index: 100; padding: 30px 20px; pointer-events: auto;
+}
+#inspector.open { right: 0; }
+.metric-row { display: flex; justify-content: space-between; padding: 10px; background: rgba(19, 211, 142, 0.05); margin-bottom: 5px; }
+
+/* ANIMATIONS */
+.active-glow { animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* Ebenen-Label im 3D Raum (CSS2D oder Overlay) */
+.floor-label {
+    position: absolute;
+    left: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    color: rgba(19, 211, 142, 0.2);
+    pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 5px;
+}
+
+/* Trennlinie für Etagen im HUD */
+.metric-row.floor-header {
+    background: var(--neon);
+    color: #000;
+    font-weight: bold;
+    margin-top: 15px;
+}
