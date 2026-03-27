@@ -1,67 +1,113 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NagVis 3D | Multi-Level Topology</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NagVis 3D · v3</title>
+
+  <script type="importmap">{
+    "imports": {
+      "three":         "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }</script>
+
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <div class="hud">
-        <header id="header" class="panel">
-            <div class="logo">NAGVIS 3D <span class="subtitle">| ARCHITECTURE_VIEW</span></div>
-            
-            <div id="mode-selector">
-                <select id="view-mode">
-                    <option value="mine">MODE: DEEP_MINING (Down)</option>
-                    <option value="building">MODE: HIGH_RISE (Up)</option>
-                </select>
-            </div>
+<div id="canvas-wrap"></div>
 
-            <div class="status">ENGINE: <span class="active-glow">ONLINE</span></div>
-        </header>
+<!-- HUD -->
+<div class="hud">
+  <div id="header" class="panel">
+    <div class="dot"></div>
+    <div class="title">NagVis <span>3D</span></div>
+    <div class="sub" id="view-sub">v3 · POC</div>
 
-        <div id="search-container">
-            <input type="text" id="search-input" placeholder="SEARCH_NODE_ID..." autocomplete="off">
-            <div id="search-results"></div>
-        </div>
-
-        <div id="bottom-row">
-            <div id="event-log" class="panel">
-                <div class="log-header">SYSTEM_LOG:</div>
-                <div id="log-content"></div>
-            </div>
-            <div id="controls" class="panel">
-                <label>FLOW_SPEED</label>
-                <input type="range" id="flow-slider" min="0" max="100" value="35">
-                <button id="orbit-btn">TOGGLE_ORBIT</button>
-            </div>
-        </div>
+    <!-- 2D mode badge -->
+    <div id="view-badge">
+      <span>2D ·</span>
+      <span class="vb-floor" id="vb-floor-name">–</span>
+      <button class="btn btn-back3d" style="padding:2px 8px;font-size:10px" onclick="app.exit2D()">← 3D</button>
     </div>
 
-    <div id="inspector">
-        <span class="close-btn" id="close-inspector">[ CLOSE_X ]</span>
-        <div id="ins-header">
-            <h2 id="ins-label">NODE_NAME</h2>
-            <code id="ins-id">ID: ---</code>
-        </div>
-        <hr style="border:0; border-top:1px solid #13d38e33; margin:20px 0;">
-        <div id="ins-content"></div>
+    <div id="hdr-right">
+      <div id="mode-toggle">
+        <button class="btn mode-active" id="btn-mine"     onclick="app.setMode('mine')">⛏ Schacht</button>
+        <button class="btn"            id="btn-building"  onclick="app.setMode('building')">🏢 Hochhaus</button>
+      </div>
+      <div id="legend">
+        <div class="leg"><div class="leg-dot" style="background:var(--ok);  box-shadow:0 0 5px var(--ok)"></div>OK</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--warn);box-shadow:0 0 5px var(--warn)"></div>WARN</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--crit);box-shadow:0 0 5px var(--crit)"></div>CRIT</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--down);box-shadow:0 0 5px var(--down)"></div>DOWN</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--unkn)"></div>UNKN</div>
+      </div>
     </div>
+  </div>
 
-    <div id="ins-actions" style="margin-top: 20px;">
-        <button id="view-2d-btn" style="width: 100%; border-color: #00ccff; color: #00ccff;">
-        SWITCH TO 2D ROOMPLAN
-        </button>
+  <div id="bottom-bar">
+    <div id="event-log" class="panel">
+      <div id="log-title">SYSTEM LOG</div>
+      <div id="log-entries"></div>
     </div>
+    <div id="controls" class="panel">
+      <label>FLOW SPEED</label>
+      <input type="range" id="flow-speed" min="0" max="100" value="40">
+      <div class="btn-row">
+        <button class="btn active" id="btn-orbit" onclick="app.toggleOrbit()">Auto-Orbit</button>
+        <button class="btn"                        onclick="app.resetCam()">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-    <div id="canvas-container"></div>
+<!-- Floor nav (right) -->
+<div id="floor-panel"></div>
 
-    <script src="app.js"></script>
+<!-- 2D panel: background + opacity (left) -->
+<div id="panel-2d">
+  <div class="panel" style="display:flex;flex-direction:column;gap:7px">
+    <label>GRUNDRISS</label>
+    <button class="btn" onclick="document.getElementById('bg-file-input').click()">📁 Bild laden</button>
+    <div class="bg-img-name" id="bg-img-name">— kein Bild —</div>
+    <label>BILD-DECKKRAFT</label>
+    <input type="range" id="bg-opacity" min="0" max="100" value="60"
+           oninput="app.setBgOpacity(this.value / 100)">
+    <label>EBENE-DECKKRAFT</label>
+    <input type="range" id="floor-opacity" min="0" max="100" value="30"
+           oninput="app.setFloorOpacity(this.value / 100)">
+  </div>
+</div>
+
+<!-- Zoom controls (left-bottom) -->
+<div id="zoom-ctrl">
+  <button class="btn btn-zoom" onclick="app.zoom(+1)">+</button>
+  <button class="btn btn-zoom" onclick="app.zoom(-1)">−</button>
+</div>
+
+<!-- Controls hint -->
+<div id="ctrl-hint">🖱 Drehen · Rechte Taste: Schieben · Rad: Zoom</div>
+
+<!-- Node Inspector -->
+<div id="inspector">
+  <div id="ins-hdr">
+    <span id="ins-close" onclick="app.closeInspector()">✕</span>
+    <span id="ins-badge" class="s-badge s-ok">OK</span>
+    <h2 id="ins-name">–</h2>
+    <code id="ins-id">–</code>
+  </div>
+  <div id="ins-body"></div>
+  <div id="ins-foot">
+    <button class="btn" style="flex:1" onclick="app.focusActive()">Focus Camera</button>
+  </div>
+</div>
+
+<!-- hidden file input for bg image -->
+<input type="file" id="bg-file-input" accept="image/*" style="display:none"
+       onchange="app._onBgFileSelected(this.files[0]); this.value=''">
+
+<script type="module" src="app.js"></script>
 </body>
 </html>
