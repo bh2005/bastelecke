@@ -33,10 +33,14 @@
     </div>
 
     <div id="hdr-right">
-      <div id="mode-toggle">
-        <button class="btn mode-active" id="btn-mine"     onclick="app.setMode('mine')">⛏ Schacht</button>
-        <button class="btn"            id="btn-building"  onclick="app.setMode('building')">🏢 Hochhaus</button>
-      </div>
+      <!-- Problem list -->
+      <button class="btn" id="btn-problems" onclick="problemList.toggle()">⚑ 0</button>
+
+      <!-- Model selector -->
+      <button class="btn" id="btn-model-selector" onclick="modelDialog.open()">
+        <span id="btn-model-name">–</span> <span style="opacity:.45;font-size:9px">▾</span>
+      </button>
+
       <div id="legend">
         <div class="leg"><div class="leg-dot" style="background:var(--ok);  box-shadow:0 0 5px var(--ok)"></div>OK</div>
         <div class="leg"><div class="leg-dot" style="background:var(--warn);box-shadow:0 0 5px var(--warn)"></div>WARN</div>
@@ -81,7 +85,7 @@
   </div>
 </div>
 
-<!-- Zoom controls (left-bottom) -->
+<!-- Zoom controls -->
 <div id="zoom-ctrl">
   <button class="btn btn-zoom" onclick="app.zoom(+1)">+</button>
   <button class="btn btn-zoom" onclick="app.zoom(-1)">−</button>
@@ -103,6 +107,101 @@
     <button class="btn" style="flex:1" onclick="app.focusActive()">Focus Camera</button>
   </div>
 </div>
+
+<!-- ═══════════ PROBLEM PANEL ═══════════ -->
+<div id="problem-panel">
+  <div id="prob-hdr">
+    <span class="dlg-title">Problem <span>Hosts</span></span>
+    <span class="dlg-close" id="prob-close">✕</span>
+  </div>
+  <div id="prob-list"></div>
+</div>
+
+<!-- ═══════════ MODEL DIALOG ═══════════ -->
+<div id="model-dialog">
+  <div id="model-dialog-inner">
+
+    <div id="model-dialog-hdr">
+      <span class="dlg-title">Modell <span>wechseln</span></span>
+      <span class="dlg-close" onclick="modelDialog.close()">✕</span>
+    </div>
+
+    <!-- Model list (populated by JS) -->
+    <div id="model-list"></div>
+
+    <div id="model-dialog-foot">
+      <button class="btn" id="btn-new-model">+ Neues Modell</button>
+    </div>
+
+    <!-- ── New model form ─────────────────────────── -->
+    <div id="model-new-section" style="display:none">
+      <div class="dlg-divider"></div>
+      <div class="dlg-section-title">Neues Modell anlegen</div>
+
+      <form id="model-form">
+
+        <div class="form-row">
+          <label class="form-label">Name</label>
+          <input class="form-input" type="text" name="name" required placeholder="z.B. Schachtanlage Nord">
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Typ</label>
+          <div class="radio-group">
+            <label class="radio-opt">
+              <input type="radio" name="type" value="building" checked>
+              <span>🏢 Hochhaus</span>
+            </label>
+            <label class="radio-opt">
+              <input type="radio" name="type" value="mine">
+              <span>⛏ Grube / Schacht</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-col">
+            <label class="form-label">Etagen / Sohlen</label>
+            <input class="form-input" type="number" name="floorCount" value="4" min="2" max="20">
+          </div>
+          <div class="form-col">
+            <label class="form-label">Höhe pro Etage (m)</label>
+            <input class="form-input" type="number" name="floorHeight" value="3" min="1" max="1000" step="0.5">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-col">
+            <label class="form-label">Breite (m)</label>
+            <input class="form-input" type="number" name="width" value="110" min="10">
+          </div>
+          <div class="form-col">
+            <label class="form-label">Länge (m)</label>
+            <input class="form-input" type="number" name="length" value="110" min="10">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-col">
+            <label class="form-label">Breitengrad (lat)</label>
+            <input class="form-input" type="number" name="lat" value="51.5062" step="0.0001">
+          </div>
+          <div class="form-col">
+            <label class="form-label">Längengrad (lon)</label>
+            <input class="form-input" type="number" name="lon" value="9.3327" step="0.0001">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn" id="btn-cancel-new">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Anlegen</button>
+        </div>
+
+      </form>
+    </div><!-- /model-new-section -->
+
+  </div><!-- /model-dialog-inner -->
+</div><!-- /model-dialog -->
 
 <!-- hidden file input for bg image -->
 <input type="file" id="bg-file-input" accept="image/*" style="display:none"
