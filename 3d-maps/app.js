@@ -274,6 +274,24 @@ const MAP_DATA = {
     { id:'ldap-01',     label:'ldap-server',    type:'host',   status:'unknown',
       x: 28, y:-52, z:  8,
       lat:51.5400, lon:9.4200, floor:'SOHLE 3' },
+
+    // ── AccessPoints (WLAN Heatmap) ────────────────────────
+    { id:'ap-ot-01', label:'AP-ÜBERTAGE-01', type:'accesspoint', status:'ok',
+      wifiRadius: 28,
+      x: -20, y: 52, z: 18,
+      lat:51.5040, lon:9.3290, floor:'ÜBERTAGE' },
+    { id:'ap-ot-02', label:'AP-ÜBERTAGE-02', type:'accesspoint', status:'warning',
+      wifiRadius: 24,
+      x:  22, y: 52, z: -15,
+      lat:51.5080, lon:9.3370, floor:'ÜBERTAGE' },
+    { id:'ap-s1-01', label:'AP-SOHLE1-01',  type:'accesspoint', status:'ok',
+      wifiRadius: 32,
+      x: -40, y: 17, z: 20,
+      lat:51.4720, lon:9.2850, floor:'SOHLE 1' },
+    { id:'ap-s1-02', label:'AP-SOHLE1-02',  type:'accesspoint', status:'critical',
+      wifiRadius: 30,
+      x:  35, y: 17, z: 15,
+      lat:51.5380, lon:9.3850, floor:'SOHLE 1' },
   ],
   links: [
     { source:'core-sw-01', target:'dist-sw-01', status:'ok'       },
@@ -310,6 +328,12 @@ class NV2Map3D {
     this._bgMats       = {};
     this._mode2D       = false;
     this._floor2DY     = null;
+    // ── New feature state ──
+    this._pulseRings   = [];   // expanding alert rings
+    this._searchRings  = [];   // highlight rings for search
+    this._wifiMeshes   = {};   // id → heatmap mesh for APs
+    this._cockpitMode  = false;
+    this._prevStatus   = {};   // id → last known status (for pulse detection)
 
     this._model        = initialModel;
     this._activeFloors = buildFloors(initialModel);
@@ -359,6 +383,15 @@ class NV2Map3D {
     this._activeFloors = buildFloors(cfg);
     this.nodePositions = {};
     this._applyGeoLayout(this.data.nodes);
+
+    // Clear search / pulse / wifi state
+    this._clearSearch(false);
+    this._pulseRings.forEach(r => { this.scene.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); });
+    this._pulseRings = [];
+    Object.values(this._wifiMeshes).forEach(m => { this.scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+    this._wifiMeshes = {};
+    this._prevStatus = {};
+    if (this._cockpitMode) this.toggleCockpit();   // exit cockpit on model switch
 
     // Rebuild node/link scene objects with new positions
     Object.values(this.nodeObjects).forEach(g => { disposeCSS2D(g); this.scene.remove(g); });
@@ -491,6 +524,54 @@ class NV2Map3D {
     }
 
     return new THREE.CanvasTexture(cv);
+  }
+
+  // ── WLAN heatmap texture (radial gradient per AP status) ──
+
+  _genWifiTexture(status) {
+    const sz = 256, cv = document.createElement('canvas');
+    cv.width = cv.height = sz;
+    const ctx = cv.getContext('2d');
+    const pal = { ok:[39,174,96], warning:[230,126,34], critical:[231,76,60], down:[192,57,43] };
+    const [r,g,b] = pal[status] ?? pal.ok;
+    const grd = ctx.createRadialGradient(sz/2,sz/2, 0, sz/2,sz/2, sz/2);
+    grd.addColorStop(0,    `rgba(${r},${g},${b},0.50)`);
+    grd.addColorStop(0.35, `rgba(${r},${g},${b},0.28)`);
+    grd.addColorStop(0.70, `rgba(${r},${g},${b},0.10)`);
+    grd.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+    // Concentric signal rings
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, sz, sz);
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.18)`;
+    ctx.lineWidth = 1.5;
+    [0.30, 0.55, 0.80].forEach(frac => {
+      ctx.beginPath();
+      ctx.arc(sz/2, sz/2, sz/2 * frac, 0, Math.PI*2);
+      ctx.stroke();
+    });
+    return new THREE.CanvasTexture(cv);
+  }
+
+  // ── WLAN heatmap plane (placed on the nearest floor) ──────
+
+  _buildWifiHeatmap(node, pos) {
+    const radius = node.wifiRadius ?? 22;
+    const tex    = this._genWifiTexture(node.status);
+    const mat    = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    });
+    const geo  = new THREE.CircleGeometry(radius, 64);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    const floorY = this._activeFloors.length
+      ? this._activeFloors.reduce((best, f) =>
+          Math.abs(f.y - pos.y) < Math.abs(best - pos.y) ? f.y : best,
+          this._activeFloors[0].y)
+      : pos.y;
+    mesh.position.set(pos.x, floorY + 0.25, pos.z);
+    this.scene.add(mesh);
+    this._wifiMeshes[node.id] = mesh;
   }
 
   // ── Build floors ───────────────────────────────────────────
@@ -691,24 +772,46 @@ class NV2Map3D {
       group.position.copy(pos);
       this.scene.add(group);
       this.nodeObjects[node.id] = group;
+      this._prevStatus[node.id] = node.status;
+      if (node.type === 'accesspoint') this._buildWifiHeatmap(node, pos);
     });
   }
 
   _createNodeMesh(node) {
     const cfg = S(node.status), group = new THREE.Group();
     group.userData = { ...node };
-    const geo = node.type === 'switch'
-      ? new THREE.BoxGeometry(5, 0.9, 3)
-      : new THREE.SphereGeometry(2.3, 18, 14);
     const mat = new THREE.MeshStandardMaterial({
       color: cfg.hex, emissive: cfg.emissive,
       emissiveIntensity: al(node.status) ? 0.55 : 0.2,
       roughness: 0.45, metalness: 0.55,
     });
-    group.add(new THREE.Mesh(geo, mat));
+
+    if (node.type === 'accesspoint') {
+      // Disc body + antenna
+      const body    = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 0.55, 16), mat);
+      const antenna = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.12, 3.0, 6),
+        new THREE.MeshStandardMaterial({ color:0x888899, metalness:0.85, roughness:0.15 })
+      );
+      antenna.position.y = 1.8;
+      const tip = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 8, 6),
+        new THREE.MeshBasicMaterial({ color: cfg.hex })
+      );
+      tip.position.y = 3.3;
+      group.add(body); group.add(antenna); group.add(tip);
+      if (al(node.status)) this.alertObjs.push(body);
+    } else {
+      const geo = node.type === 'switch'
+        ? new THREE.BoxGeometry(5, 0.9, 3)
+        : new THREE.SphereGeometry(2.3, 18, 14);
+      const mesh = new THREE.Mesh(geo, mat);
+      group.add(mesh);
+      if (al(node.status)) this.alertObjs.push(mesh);
+    }
+
     if (al(node.status) || node.status === 'warning')
       group.add(Object.assign(new THREE.PointLight(cfg.hex, 0.9, 22), {}));
-    if (al(node.status)) this.alertObjs.push(group.children[0]);
 
     const div = document.createElement('div');
     div.className = 'node-label';
@@ -832,15 +935,41 @@ class NV2Map3D {
     hosts.forEach(h => {
       const group = this.nodeObjects[h.id];
       if (!group) return;
-      const mesh = group.children[0];
-      if (!mesh?.isMesh) return;
-      const cfg = S(h.status);
+      const mesh = group.children.find(c => c.isMesh);
+      if (!mesh) return;
+      const cfg  = S(h.status);
+      const prev = this._prevStatus[h.id];
+
       mesh.material.color.set(cfg.hex);
       mesh.material.emissive.set(cfg.emissive);
       mesh.material.emissiveIntensity = al(h.status) ? 0.55 : 0.2;
       group.userData.status = h.status;
-      if (this._activeNode?.id === h.id) { this._activeNode.status = h.status; this.openInspector(this._activeNode); }
+      this._prevStatus[h.id] = h.status;
+
+      // Pulse ring when transitioning TO critical / down
+      if (al(h.status) && !al(prev ?? '')) {
+        this._spawnPulseRing(group.position, cfg.hex);
+      }
+
+      // Update wifi heatmap texture
+      if (this._wifiMeshes[h.id]) {
+        this._wifiMeshes[h.id].material.map.dispose();
+        this._wifiMeshes[h.id].material.map = this._genWifiTexture(h.status);
+        this._wifiMeshes[h.id].material.needsUpdate = true;
+      }
+
+      if (this._activeNode?.id === h.id) {
+        this._activeNode.status = h.status;
+        this.openInspector(this._activeNode);
+      }
     });
+    // Keep cockpit visibility in sync
+    if (this._cockpitMode) {
+      hosts.forEach(h => {
+        const g = this.nodeObjects[h.id];
+        if (g) g.visible = al(h.status) || h.status === 'warning';
+      });
+    }
     window.problemList?.update(this.data.nodes.map(n => ({ ...n, status: this.nodeObjects[n.id]?.userData?.status ?? n.status })));
     this._log(`Status update · ${hosts.length} host(s)`);
   }
@@ -854,6 +983,138 @@ class NV2Map3D {
       try { const m = JSON.parse(e.data); if (m.type === 'status_update' && m.hosts) this.updateNodeStatus(m.hosts); } catch {}
     };
     this.ws = ws;
+  }
+
+  // ── Pulse rings ────────────────────────────────────────────
+
+  _spawnPulseRing(pos, color) {
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(2.8, 4.0, 40),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(pos.x, pos.y + 0.4, pos.z);
+      this.scene.add(ring);
+      this._pulseRings.push({ mesh: ring, t: i * 0.35, maxT: 1.4, maxScale: 5.5, baseOpacity: 0.75 });
+    }
+  }
+
+  // ── Search & Highlight ─────────────────────────────────────
+
+  search(q) {
+    if (!q || !q.trim()) { this._clearSearch(true); return; }
+    this._highlightSearch(q.trim().toLowerCase());
+  }
+
+  _highlightSearch(q) {
+    this._clearSearch(false);
+    let matches = 0;
+    let firstMatchId = null;
+
+    Object.entries(this.nodeObjects).forEach(([id, group]) => {
+      const node    = this.data.nodes.find(n => n.id === id);
+      const isMatch = node && (
+        node.label.toLowerCase().includes(q) ||
+        id.toLowerCase().includes(q) ||
+        (node.floor ?? '').toLowerCase().includes(q) ||
+        (node.type  ?? '').toLowerCase().includes(q)
+      );
+      const mesh    = group.children.find(c => c.isMesh);
+      const labelEl = group.children.find(c => c.isCSS2DObject)?.element;
+
+      if (isMatch) {
+        matches++;
+        if (!firstMatchId) firstMatchId = id;
+        if (mesh) {
+          mesh.material.emissiveIntensity = 0.9;
+        }
+        if (labelEl) { labelEl.style.opacity = '1'; labelEl.style.fontWeight = '700'; }
+
+        // Blue highlight ring
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(3.8, 5.0, 40),
+          new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(group.position.x, group.position.y + 0.5, group.position.z);
+        this.scene.add(ring);
+        this._searchRings.push(ring);
+      } else {
+        if (mesh) {
+          const cfg = S(group.userData.status ?? node?.status ?? 'unknown');
+          mesh.material.color.setHex(0x1a1e28);
+          mesh.material.emissive.setHex(cfg.emissive);
+          mesh.material.emissiveIntensity = 0.04;
+        }
+        if (labelEl) { labelEl.style.opacity = '0.12'; labelEl.style.fontWeight = ''; }
+      }
+    });
+
+    const el = document.getElementById('search-count');
+    if (el) el.textContent = matches ? `${matches}` : '–';
+
+    if (matches === 1 && firstMatchId) this.focusNode(firstMatchId);
+  }
+
+  _clearSearch(restore = true) {
+    this._searchRings.forEach(r => { this.scene.remove(r); r.geometry.dispose(); r.material.dispose(); });
+    this._searchRings = [];
+    const el = document.getElementById('search-count');
+    if (el) el.textContent = '';
+    if (!restore) return;
+    Object.entries(this.nodeObjects).forEach(([id, group]) => {
+      const node = this.data.nodes.find(n => n.id === id);
+      if (!node) return;
+      const cfg     = S(group.userData.status ?? node.status);
+      const mesh    = group.children.find(c => c.isMesh);
+      const labelEl = group.children.find(c => c.isCSS2DObject)?.element;
+      if (mesh) {
+        mesh.material.color.setHex(cfg.hex);
+        mesh.material.emissive.setHex(cfg.emissive);
+        mesh.material.emissiveIntensity = al(node.status) ? 0.55 : 0.2;
+      }
+      if (labelEl) { labelEl.style.opacity = ''; labelEl.style.fontWeight = ''; }
+    });
+  }
+
+  clearSearch() { this._clearSearch(true); }
+
+  // ── Cockpit mode ───────────────────────────────────────────
+
+  toggleCockpit() {
+    this._cockpitMode = !this._cockpitMode;
+    document.getElementById('btn-cockpit')?.classList.toggle('active', this._cockpitMode);
+    document.getElementById('cockpit-badge')?.classList.toggle('visible', this._cockpitMode);
+
+    if (this._cockpitMode) {
+      this.scene.background = new THREE.Color(0x0d0005);
+      this.scene.fog        = new THREE.FogExp2(0x0d0005, 0.0018);
+      this._accentLight.color.set(0x660000);
+      this._setAutoOrbit(false);
+    } else {
+      this.scene.background = null;
+      this.scene.fog        = new THREE.FogExp2(0x080a0e, 0.003);
+      this._accentLight.color.set(0x3060aa);
+    }
+
+    Object.entries(this.nodeObjects).forEach(([id, group]) => {
+      const status  = group.userData.status ?? this.data.nodes.find(n => n.id === id)?.status ?? 'unknown';
+      const labelEl = group.children.find(c => c.isCSS2DObject)?.element;
+      if (this._cockpitMode) {
+        const show = al(status) || status === 'warning';
+        group.visible = show;
+        if (labelEl) labelEl.style.opacity = show ? (status === 'warning' ? '0.6' : '1') : '0';
+      } else {
+        group.visible = true;
+        if (labelEl) { labelEl.style.opacity = ''; }
+      }
+    });
+
+    // wifi meshes: hide in cockpit for cleaner look
+    Object.values(this._wifiMeshes).forEach(m => { m.visible = !this._cockpitMode; });
+
+    this._log(this._cockpitMode ? '⚡ Cockpit-Modus aktiv — nur Probleme' : '← Cockpit beendet');
   }
 
   // ── Inspector ──────────────────────────────────────────────
@@ -905,7 +1166,18 @@ class NV2Map3D {
     });
 
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { this.closeInspector(); if (this._mode2D) this.exit2D(); }
+      if (e.key === 'Escape') {
+        this.closeInspector();
+        if (this._mode2D) this.exit2D();
+        if (this._cockpitMode) this.toggleCockpit();
+        const si = document.getElementById('search-input');
+        if (si && si.value) { si.value = ''; this._clearSearch(true); }
+      }
+      // Ctrl+F / Cmd+F → focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('search-input')?.focus();
+      }
     });
 
     document.getElementById('flow-speed').oninput = (e) => { this.flowSpeed = e.target.value / 100; };
@@ -952,6 +1224,30 @@ class NV2Map3D {
       s.prog += step; if (s.prog > 1) s.prog = 0;
       s.spark.position.lerpVectors(s.start, s.end, s.prog);
     });
+
+    // ── Pulse rings (expand + fade on alert transition) ──────
+    const dt = 0.016;
+    for (let i = this._pulseRings.length - 1; i >= 0; i--) {
+      const r    = this._pulseRings[i];
+      r.t       += dt;
+      const prog = r.t / r.maxT;
+      if (prog >= 1) {
+        this.scene.remove(r.mesh);
+        r.mesh.geometry.dispose();
+        r.mesh.material.dispose();
+        this._pulseRings.splice(i, 1);
+        continue;
+      }
+      const sc = 1 + prog * r.maxScale;
+      r.mesh.scale.set(sc, sc, sc);
+      r.mesh.material.opacity = r.baseOpacity * (1 - prog * prog);
+    }
+
+    // ── Search rings (pulse glow) ─────────────────────────────
+    if (this._searchRings.length) {
+      const sp = 0.38 + Math.abs(Math.sin(t * 2.8)) * 0.55;
+      this._searchRings.forEach(r => { r.material.opacity = sp; });
+    }
 
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);

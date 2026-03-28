@@ -17,6 +17,7 @@
 <body>
 
 <div id="canvas-wrap"></div>
+<div id="cockpit-badge">⚡ COCKPIT</div>
 
 <!-- HUD -->
 <div class="hud">
@@ -32,7 +33,19 @@
       <button class="btn btn-back3d" style="padding:2px 8px;font-size:10px" onclick="app.exit2D()">← 3D</button>
     </div>
 
+    <!-- Search -->
+    <div id="search-wrap">
+      <input id="search-input" type="text" placeholder="Host suchen… (Ctrl+F)"
+             autocomplete="off" spellcheck="false"
+             oninput="app.search(this.value)"
+             onkeydown="if(event.key==='Escape'){app.clearSearch();this.value='';}">
+      <span id="search-count"></span>
+    </div>
+
     <div id="hdr-right">
+      <!-- Cockpit mode -->
+      <button class="btn" id="btn-cockpit" onclick="app.toggleCockpit()" title="Cockpit-Modus (nur Probleme)">⚡</button>
+
       <!-- Problem list -->
       <button class="btn" id="btn-problems" onclick="problemList.toggle()">⚑ 0</button>
 

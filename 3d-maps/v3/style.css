@@ -50,6 +50,46 @@ body, html {
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
 #hdr-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
 
+/* ── Search ─────────────────────────────────────────────────── */
+#search-wrap {
+  position: relative; display: flex; align-items: center;
+}
+#search-input {
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10);
+  border-radius: 5px; color: #c8cee0;
+  padding: 4px 28px 4px 9px; font-size: 11px; font-family: monospace;
+  width: 170px; outline: none;
+  transition: border-color .15s, background .15s;
+}
+#search-input:focus {
+  border-color: var(--accent); background: rgba(77,156,248,.08);
+}
+#search-input::placeholder { color: #3a3f52; }
+#search-count {
+  position: absolute; right: 7px;
+  font-size: 10px; font-family: monospace; color: var(--accent);
+  pointer-events: none;
+}
+
+/* ── Cockpit badge ───────────────────────────────────────────── */
+#cockpit-badge {
+  position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+  z-index: 15; pointer-events: none;
+  background: rgba(180,0,0,.18); border: 1px solid rgba(220,30,30,.45);
+  border-radius: 5px; padding: 3px 14px;
+  font-size: 11px; font-family: monospace; font-weight: 700;
+  color: #ff5555; letter-spacing: 2px;
+  opacity: 0; transition: opacity .25s;
+}
+#cockpit-badge.visible { opacity: 1; }
+
+/* ── Cockpit button active ───────────────────────────────────── */
+.btn#btn-cockpit.active {
+  border-color: rgba(220,50,50,.6);
+  color: #ff5555;
+  background: rgba(180,0,0,.18);
+}
+
 /* 2D badge in header */
 #view-badge {
   display: none; align-items: center; gap: 6px;
