@@ -277,19 +277,19 @@ const MAP_DATA = {
 
     // ── AccessPoints (WLAN Heatmap) ────────────────────────
     { id:'ap-ot-01', label:'AP-ÜBERTAGE-01', type:'accesspoint', status:'ok',
-      wifiRadius: 28,
+      wifiDbm: -45,
       x: -20, y: 52, z: 18,
       lat:51.5040, lon:9.3290, floor:'ÜBERTAGE' },
     { id:'ap-ot-02', label:'AP-ÜBERTAGE-02', type:'accesspoint', status:'warning',
-      wifiRadius: 24,
+      wifiDbm: -62,
       x:  22, y: 52, z: -15,
       lat:51.5080, lon:9.3370, floor:'ÜBERTAGE' },
     { id:'ap-s1-01', label:'AP-SOHLE1-01',  type:'accesspoint', status:'ok',
-      wifiRadius: 32,
+      wifiDbm: -38,
       x: -40, y: 17, z: 20,
       lat:51.4720, lon:9.2850, floor:'SOHLE 1' },
     { id:'ap-s1-02', label:'AP-SOHLE1-02',  type:'accesspoint', status:'critical',
-      wifiRadius: 30,
+      wifiDbm: -78,
       x:  35, y: 17, z: 15,
       lat:51.5380, lon:9.3850, floor:'SOHLE 1' },
   ],
@@ -552,10 +552,18 @@ class NV2Map3D {
     return new THREE.CanvasTexture(cv);
   }
 
+  // ── dBm → scene-unit radius  (-30 dBm strong → 48u, -90 dBm weak → 8u) ──
+
+  _dbmToRadius(dbm) {
+    const clamped = Math.max(-90, Math.min(-30, dbm ?? -65));
+    // linear map: -30→48, -90→8
+    return 8 + (clamped - (-90)) / 60 * 40;
+  }
+
   // ── WLAN heatmap plane (placed on the nearest floor) ──────
 
   _buildWifiHeatmap(node, pos) {
-    const radius = node.wifiRadius ?? 22;
+    const radius = node.wifiDbm != null ? this._dbmToRadius(node.wifiDbm) : (node.wifiRadius ?? 22);
     const tex    = this._genWifiTexture(node.status);
     const mat    = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, depthWrite: false,
@@ -1130,11 +1138,15 @@ class NV2Map3D {
     const geoLine = data.lat
       ? `<div class="m-row"><span>Koordinaten</span><b>${data.lat?.toFixed(4)}°N, ${data.lon?.toFixed(4)}°E</b></div>`
       : '';
+    const dbmLine = data.wifiDbm != null
+      ? `<div class="m-row"><span>WLAN-Signal</span><b>${data.wifiDbm} dBm · r≈${this._dbmToRadius(data.wifiDbm).toFixed(0)} u</b></div>`
+      : '';
     document.getElementById('ins-body').innerHTML = `
       <div class="m-row"><span>Status</span><b class="${cfg.cls}">${cfg.label}</b></div>
       <div class="m-row"><span>Typ</span><b>${data.type}</b></div>
       <div class="m-row"><span>Ebene</span><b>${data.floor ?? '–'}</b></div>
       ${geoLine}
+      ${dbmLine}
       ${pos ? `<div class="m-row"><span>Scene X/Y/Z</span><b>${pos.x.toFixed(1)} / ${pos.y.toFixed(1)} / ${pos.z.toFixed(1)}</b></div>` : ''}
     `;
     document.getElementById('inspector').classList.add('open');

@@ -30,7 +30,9 @@ Nodes mit `type: 'accesspoint'` bekommen:
   - Grün (OK), Gelb (WARNING), Rot (CRITICAL/DOWN)
 - Konzentrische Signal-Ringe im Gradient
 - Additive Blending → mehrere APs überlagern sich realistisch
-- Radius konfigurierbar per `wifiRadius` (Scene-Units)
+- Radius aus `wifiDbm` (dBm-Wert): -30 dBm (stark) → 48 u, -90 dBm (schwach) → 8 u
+  - Berechnung: `_dbmToRadius(dbm)` linear mapping
+- dBm-Wert und berechneter Radius werden im Inspector angezeigt
 - Texture wird bei Status-Update neu generiert
 
 ---
