@@ -27,6 +27,16 @@ body, html {
   pointer-events: none; white-space: nowrap;
   backdrop-filter: blur(4px); user-select: none;
 }
+.node-label--portal {
+  color: #13b0f5;
+  border-color: rgba(19,176,245,.5);
+  background: rgba(4,20,34,.88);
+  animation: portal-pulse 2s ease-in-out infinite;
+}
+@keyframes portal-pulse {
+  0%,100% { box-shadow: 0 0 4px rgba(19,176,245,.3); }
+  50%      { box-shadow: 0 0 10px rgba(19,176,245,.7); }
+}
 
 /* HUD */
 .hud {

@@ -28,9 +28,10 @@ const BUILD_ACCENTS = [
   [180,120,60],  [160,90,180],  [200,160,40],  [90,190,140],
 ];
 
-const SCENE_MAX  = 180;   // largest floor → this many scene units wide
-const FLOOR_STEP = 35;    // vertical gap between floors (scene units)
-const BBOX_PAD   = 300;   // metres of padding around node cluster per floor
+const SCENE_MAX      = 180;   // largest floor → this many scene units wide
+const FLOOR_STEP     = 35;    // vertical gap between floors (scene units)
+const BBOX_PAD       = 300;   // metres of padding around node cluster per floor
+const TUNNEL_MIN_DIST = 30;   // scene-unit threshold: underground links longer than this → tunnel glow
 
 // ─────────────────────────────────────────────────────────────
 //  CSS2D CLEANUP
@@ -128,29 +129,232 @@ function computeGeoLayout(nodes, floors, cfg) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  BUILDING DATA  →  data/building.json
+// ─────────────────────────────────────────────────────────────
+const BUILDING_DATA = {
+  nodes: [
+    // ── EG  ───────────────────────────────────────────────
+    { id:'mdf-sw',     label:'MDF-Switch',   type:'switch', status:'ok',
+      x:  0, y:-52, z:  0, floor:'EG' },
+    { id:'portal-to-dc', label:'Datacenter-Raum', type:'host', status:'ok',
+      x: -35, y:-52, z: -35, floor:'EG', linkedModel:'dc1' },
+    { id:'reception',  label:'Reception-PC', type:'host',   status:'ok',
+      x: 24, y:-52, z: 20, floor:'EG' },
+    { id:'printer-eg', label:'Drucker EG',   type:'host',   status:'ok',
+      x:-20, y:-52, z: 22, floor:'EG' },
+
+    // ── 1. OG ─────────────────────────────────────────────
+    { id:'sw-og1',  label:'SW-1.OG',   type:'switch', status:'ok',
+      x:  0, y:-18, z:  0, floor:'1. OG' },
+    { id:'ws-1-01', label:'WS-1-01',   type:'host',   status:'ok',
+      x:-30, y:-18, z:-22, floor:'1. OG' },
+    { id:'ws-1-02', label:'WS-1-02',   type:'host',   status:'warning',
+      x: 30, y:-18, z:-22, floor:'1. OG' },
+    { id:'ws-1-03', label:'WS-1-03',   type:'host',   status:'ok',
+      x:  0, y:-18, z: 34, floor:'1. OG' },
+
+    // ── 2. OG ─────────────────────────────────────────────
+    { id:'sw-og2',  label:'SW-2.OG',   type:'switch', status:'ok',
+      x:  0, y: 18, z:  0, floor:'2. OG' },
+    { id:'ws-2-01', label:'WS-2-01',   type:'host',   status:'ok',
+      x:-32, y: 18, z:-20, floor:'2. OG' },
+    { id:'ws-2-02', label:'WS-2-02',   type:'host',   status:'critical',
+      x: 32, y: 18, z:-20, floor:'2. OG' },
+    { id:'voip-2',  label:'VoIP-2.OG', type:'host',   status:'ok',
+      x: 16, y: 18, z: 30, floor:'2. OG' },
+
+    // ── 3. OG ─────────────────────────────────────────────
+    { id:'sw-og3',    label:'SW-3.OG',    type:'switch', status:'ok',
+      x:  0, y: 52, z:  0, floor:'3. OG' },
+    { id:'server-01', label:'server-01',  type:'host',   status:'ok',
+      x:-26, y: 52, z:-24, floor:'3. OG' },
+    { id:'server-02', label:'server-02',  type:'host',   status:'ok',
+      x: 26, y: 52, z:-24, floor:'3. OG' },
+    { id:'nas-01',    label:'NAS-01',     type:'host',   status:'warning',
+      x:  0, y: 52, z: 34, floor:'3. OG' },
+
+    // ── AccessPoints ──────────────────────────────────────
+    { id:'ap-eg-01',  label:'AP-EG-01',   type:'accesspoint', status:'ok',
+      wifiDbm:-52, x: 18, y:-52, z:-18, floor:'EG' },
+
+    { id:'ap-og1-01', label:'AP-1OG-01',  type:'accesspoint', status:'ok',
+      wifiDbm:-44, x:-22, y:-18, z: 10, floor:'1. OG' },
+    { id:'ap-og1-02', label:'AP-1OG-02',  type:'accesspoint', status:'warning',
+      wifiDbm:-68, x: 24, y:-18, z: 10, floor:'1. OG' },
+
+    { id:'ap-og2-01', label:'AP-2OG-01',  type:'accesspoint', status:'ok',
+      wifiDbm:-41, x:  0, y: 18, z:-12, floor:'2. OG' },
+
+    { id:'ap-og3-01', label:'AP-3OG-01',  type:'accesspoint', status:'ok',
+      wifiDbm:-55, x:-18, y: 52, z: 16, floor:'3. OG' },
+    { id:'ap-og3-02', label:'AP-3OG-02',  type:'accesspoint', status:'ok',
+      wifiDbm:-49, x: 20, y: 52, z: 16, floor:'3. OG' },
+  ],
+  links: [
+    // ── Backbone / Steigleitung (vertikal, keine Tunnel-Optik) ─
+    { source:'mdf-sw', target:'sw-og1', status:'ok' },
+    { source:'sw-og1', target:'sw-og2', status:'ok' },
+    { source:'sw-og2', target:'sw-og3', status:'ok' },
+
+    // ── EG Distribution (Kabelkanal) ──────────────────────
+    { source:'mdf-sw', target:'reception',  status:'ok', tunnel:true },
+    { source:'mdf-sw', target:'printer-eg', status:'ok', tunnel:true },
+
+    // ── 1.OG Distribution ─────────────────────────────────
+    { source:'sw-og1', target:'ws-1-01', status:'ok',      tunnel:true },
+    { source:'sw-og1', target:'ws-1-02', status:'warning',  tunnel:true },
+    { source:'sw-og1', target:'ws-1-03', status:'ok',      tunnel:true },
+
+    // ── 2.OG Distribution ─────────────────────────────────
+    { source:'sw-og2', target:'ws-2-01', status:'ok',      tunnel:true },
+    { source:'sw-og2', target:'ws-2-02', status:'critical', tunnel:true },
+    { source:'sw-og2', target:'voip-2',  status:'ok',      tunnel:true },
+
+    // ── 3.OG Distribution ─────────────────────────────────
+    { source:'sw-og3', target:'server-01', status:'ok',     tunnel:true },
+    { source:'sw-og3', target:'server-02', status:'ok',     tunnel:true },
+    { source:'sw-og3', target:'nas-01',    status:'warning', tunnel:true },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────
+//  DATACENTER DATA
+//  Koordinatensystem (scale: 1 Szeneneinheit = 0.5 m):
+//    Raum 20×10 m → 40×20 Szeneneinheiten
+//    3 Reihen (A/B/C) bei Z = −5, 0, +5
+//    5 Racks pro Reihe bei X ≈ −13, −7, 0, +7, +13
+//    Rack-Höhe: 8 Szeneneinheiten = 42 HE  (1 HE ≈ 0.19 u)
+//    Y-Achse: 0 = Rack-Boden, 8 = Rack-Decke
+//      y ≈ 0.5–1.5  → unteres Rack-Drittel (Server/Storage)
+//      y ≈ 3.5–4.5  → Rack-Mitte
+//      y ≈ 6.5–7.0  → oberes Rack-Drittel (Switches/Patchpanel)
+// ─────────────────────────────────────────────────────────────
+const DATACENTER_DATA = {
+  nodes: [
+    // ── Portal zurück zum Gebäude ─────────────────────────
+    { id:'portal-to-bld', label:'Building 2 · EG', type:'host', status:'ok',
+      x:-18, y:0.5, z: -9, floor:'Datacenter', linkedModel:'building2' },
+
+    // ── Reihe A (Z=−5) · Netzwerk ─────────────────────────
+    { id:'core-sw-dc',   label:'CORE-SW-DC',     type:'switch', status:'ok',
+      x:-13, y:7.0, z:-5, floor:'Datacenter' },
+    { id:'fw-dc-01',     label:'Firewall-DC',     type:'server', status:'ok',
+      x:-13, y:6.2, z:-5, floor:'Datacenter' },
+    { id:'dist-sw-a1',   label:'DIST-SW-A1',      type:'switch', status:'ok',
+      x: -7, y:7.0, z:-5, floor:'Datacenter' },
+    { id:'dist-sw-a2',   label:'DIST-SW-A2',      type:'switch', status:'warning',
+      x:  0, y:7.0, z:-5, floor:'Datacenter' },
+    { id:'lb-dc-01',     label:'Loadbalancer-01',  type:'server', status:'ok',
+      x:  7, y:7.0, z:-5, floor:'Datacenter' },
+    { id:'mon-dc-01',    label:'Monitoring-DC',    type:'server', status:'ok',
+      x: 13, y:7.0, z:-5, floor:'Datacenter' },
+
+    // ── Reihe B (Z=0) · Compute ───────────────────────────
+    { id:'web-dc-01',    label:'web-dc-01',        type:'server', status:'ok',
+      x:-13, y:1.0, z: 0, floor:'Datacenter' },
+    { id:'web-dc-02',    label:'web-dc-02',         type:'server', status:'ok',
+      x:-13, y:1.6, z: 0, floor:'Datacenter' },
+    { id:'web-dc-03',    label:'web-dc-03',         type:'server', status:'critical',
+      x: -7, y:1.0, z: 0, floor:'Datacenter' },
+    { id:'web-dc-04',    label:'web-dc-04',         type:'server', status:'ok',
+      x: -7, y:1.6, z: 0, floor:'Datacenter' },
+    { id:'app-dc-01',    label:'app-dc-01',         type:'server', status:'ok',
+      x:  0, y:1.0, z: 0, floor:'Datacenter' },
+    { id:'app-dc-02',    label:'app-dc-02',         type:'server', status:'ok',
+      x:  0, y:1.6, z: 0, floor:'Datacenter' },
+    { id:'app-dc-03',    label:'app-dc-03',         type:'server', status:'ok',
+      x:  7, y:1.0, z: 0, floor:'Datacenter' },
+    { id:'app-dc-04',    label:'app-dc-04',         type:'server', status:'warning',
+      x:  7, y:1.6, z: 0, floor:'Datacenter' },
+    { id:'db-dc-01',     label:'db-primary-dc',     type:'server', status:'ok',
+      x: 13, y:3.5, z: 0, floor:'Datacenter' },
+    { id:'db-dc-02',     label:'db-replica-dc',     type:'server', status:'ok',
+      x: 13, y:4.5, z: 0, floor:'Datacenter' },
+
+    // ── Reihe C (Z=+5) · Storage ──────────────────────────
+    { id:'san-sw-01',    label:'SAN-SW-01',         type:'switch', status:'ok',
+      x: 13, y:7.0, z: 5, floor:'Datacenter' },
+    { id:'nas-dc-01',    label:'NAS-DC-01',          type:'server', status:'ok',
+      x:-13, y:3.5, z: 5, floor:'Datacenter' },
+    { id:'nas-dc-02',    label:'NAS-DC-02',          type:'server', status:'ok',
+      x: -7, y:3.5, z: 5, floor:'Datacenter' },
+    { id:'backup-dc-01', label:'Backup-DC-01',       type:'server', status:'ok',
+      x:  0, y:1.5, z: 5, floor:'Datacenter' },
+    { id:'tape-dc-01',   label:'Tape-Library',       type:'server', status:'unknown',
+      x:  7, y:2.5, z: 5, floor:'Datacenter' },
+  ],
+  links: [
+    // ── Netzwerk-Backbone ──────────────────────────────────
+    { source:'core-sw-dc',  target:'fw-dc-01',    status:'ok',      tunnel:true },
+    { source:'core-sw-dc',  target:'dist-sw-a1',  status:'ok',      tunnel:true },
+    { source:'core-sw-dc',  target:'dist-sw-a2',  status:'warning', tunnel:true },
+    { source:'core-sw-dc',  target:'lb-dc-01',    status:'ok',      tunnel:true },
+    { source:'core-sw-dc',  target:'mon-dc-01',   status:'ok',      tunnel:true },
+
+    // ── Compute-Distribution ───────────────────────────────
+    { source:'dist-sw-a1',  target:'web-dc-01',   status:'ok',      tunnel:true },
+    { source:'dist-sw-a1',  target:'web-dc-02',   status:'ok',      tunnel:true },
+    { source:'dist-sw-a1',  target:'web-dc-03',   status:'critical',tunnel:true },
+    { source:'dist-sw-a1',  target:'web-dc-04',   status:'ok',      tunnel:true },
+    { source:'dist-sw-a2',  target:'app-dc-01',   status:'ok',      tunnel:true },
+    { source:'dist-sw-a2',  target:'app-dc-02',   status:'ok',      tunnel:true },
+    { source:'dist-sw-a2',  target:'app-dc-03',   status:'ok',      tunnel:true },
+    { source:'dist-sw-a2',  target:'app-dc-04',   status:'warning', tunnel:true },
+
+    // ── Load Balancer → Web ────────────────────────────────
+    { source:'lb-dc-01',    target:'web-dc-01',   status:'ok',      tunnel:true },
+    { source:'lb-dc-01',    target:'web-dc-02',   status:'ok',      tunnel:true },
+    { source:'lb-dc-01',    target:'web-dc-03',   status:'critical',tunnel:true },
+    { source:'lb-dc-01',    target:'web-dc-04',   status:'ok',      tunnel:true },
+
+    // ── App → DB ───────────────────────────────────────────
+    { source:'app-dc-01',   target:'db-dc-01',    status:'ok',      tunnel:true },
+    { source:'app-dc-02',   target:'db-dc-01',    status:'ok',      tunnel:true },
+    { source:'app-dc-03',   target:'db-dc-01',    status:'ok',      tunnel:true },
+    { source:'app-dc-04',   target:'db-dc-02',    status:'warning', tunnel:true },
+    { source:'db-dc-01',    target:'db-dc-02',    status:'ok',      tunnel:true },
+
+    // ── SAN / Storage ──────────────────────────────────────
+    { source:'san-sw-01',   target:'nas-dc-01',   status:'ok',      tunnel:true },
+    { source:'san-sw-01',   target:'nas-dc-02',   status:'ok',      tunnel:true },
+    { source:'san-sw-01',   target:'backup-dc-01',status:'ok',      tunnel:true },
+    { source:'san-sw-01',   target:'tape-dc-01',  status:'unknown', tunnel:true },
+    { source:'nas-dc-01',   target:'backup-dc-01',status:'ok',      tunnel:true },
+    { source:'nas-dc-02',   target:'backup-dc-01',status:'ok',      tunnel:true },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────
 //  MODEL PRESETS
 // ─────────────────────────────────────────────────────────────
 const MODEL_PRESETS = [
   {
+    id:'dc1', name:'Datacenter DC1', type:'datacenter',
+    width:20, length:10, rows:3, racksPerRow:5, rackUnits:42,
+    dataUrl: 'data/dc1.json',
+  },
+  {
     id:'building1', name:'Building 1', type:'building',
     floorCount:4, width:110, length:110, floorHeight:3,
     lat:51.5062, lon:9.3327,
+    dataUrl: 'data/building.json',
   },
   {
     id:'building2', name:'Building 2', type:'building',
     floorCount:6, width:80, length:60, floorHeight:4,
     lat:51.5062, lon:9.3327,
+    dataUrl: 'data/building.json',
   },
   {
     id:'grube1', name:'Grube 1', type:'mine',
     floorHeight:300, lat:51.5062, lon:9.3327,
-    // widthM/lengthM are computed dynamically from node BBoxes
     floors: [
       { label:'ÜBERTAGE', sub:'Schachtanlage'  },
       { label:'SOHLE 1',  sub:'−300 m'         },
       { label:'SOHLE 2',  sub:'−600 m'         },
       { label:'SOHLE 3',  sub:'−900 m'         },
     ],
+    dataUrl: 'data/grube1.json',
   },
   {
     id:'grube2', name:'Grube 2', type:'mine',
@@ -162,6 +366,7 @@ const MODEL_PRESETS = [
       { label:'SOHLE 3',  sub:'−900 m'         },
       { label:'SOHLE 4',  sub:'−1.200 m'       },
     ],
+    dataUrl: 'data/grube2.json',
   },
 ];
 
@@ -170,6 +375,14 @@ const MODEL_PRESETS = [
 //  widthM / lengthM added later by computeGeoLayout (or static)
 // ─────────────────────────────────────────────────────────────
 function buildFloors(cfg) {
+  // Datacenter: single virtual floor in der Mitte der Racks
+  if (cfg.type === 'datacenter') {
+    const rows = cfg.rows ?? 3, rpRow = cfg.racksPerRow ?? 5;
+    return [{ y: 4, label: 'Datacenter',
+      sub: `${rows} Reihen · ${rpRow} Racks · ${cfg.rackUnits ?? 42} HE`,
+      accent: [13, 176, 245], widthM: cfg.width, lengthM: cfg.length }];
+  }
+
   const n    = cfg.floors?.length ?? cfg.floorCount;
   const half = (n - 1) * FLOOR_STEP / 2;
 
@@ -210,6 +423,7 @@ function buildFloors(cfg) {
 // ─────────────────────────────────────────────────────────────
 const LS_KEY = 'nv2_3d_models_v1';
 const ModelManager = {
+  _cache:          new Map(),
   _user()          { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } },
   _save(arr)       { localStorage.setItem(LS_KEY, JSON.stringify(arr)); },
   getAll()         { return [...MODEL_PRESETS, ...this._user()]; },
@@ -221,6 +435,31 @@ const ModelManager = {
     const hash = location.hash.replace('#', '');
     return this.getById(hash) ?? MODEL_PRESETS[0];
   },
+
+  /** Fetch node/link data for a model config.
+   *  Priority: cfg.data (inline) → cache → cfg.dataUrl (fetch) → empty */
+  async fetchData(cfg) {
+    if (cfg.data)     return cfg.data;
+    if (!cfg.dataUrl) return { nodes: [], links: [] };
+    if (this._cache.has(cfg.id)) return this._cache.get(cfg.id);
+    const res = await fetch(cfg.dataUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status} – ${cfg.dataUrl}`);
+    const data = await res.json();
+    this._cache.set(cfg.id, data);
+    return data;
+  },
+
+  /** Optionally bootstrap additional models from an external JSON registry.
+   *  The registry is an array of model-config objects (same shape as MODEL_PRESETS).
+   *  Models whose id already exists in MODEL_PRESETS are skipped. */
+  async loadRegistry(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Registry nicht erreichbar: ${url}`);
+    const models = await res.json();
+    models.forEach(m => {
+      if (!MODEL_PRESETS.some(p => p.id === m.id)) MODEL_PRESETS.push(m);
+    });
+  },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -231,48 +470,58 @@ const ModelManager = {
 // ─────────────────────────────────────────────────────────────
 const MAP_DATA = {
   nodes: [
-    // ── ÜBERTAGE  (~500 m cluster) ─────────────────────────
-    { id:'core-sw-01',  label:'CORE-SW-01',     type:'switch', status:'ok',
+    // ── ÜBERTAGE  ─────────────────────────────────────────
+    { id:'core-sw-ot',  label:'CORE-SW-ÜBERTAGE', type:'switch', status:'ok',
       x:  0, y: 52, z:  0,
       lat:51.5062, lon:9.3327, floor:'ÜBERTAGE' },
 
-    // ── SOHLE 1  (~12 × 7 km) ─────────────────────────────
-    { id:'dist-sw-01',  label:'DIST-SW-ALPHA',  type:'switch', status:'ok',
-      x:-28, y: 17, z: -8,
+    // ── SOHLE 1  – Core + Dist-Switches (Stern) ───────────
+    //   Core in der Mitte, Dist-Switches radial versetzt
+    { id:'core-sw-s1',  label:'CORE-SW-SOHLE1',   type:'switch', status:'ok',
+      x:  0, y: 17, z:  0,
+      lat:51.5050, lon:9.3350, floor:'SOHLE 1' },
+    { id:'dist-sw-01',  label:'DIST-SW-ALPHA',     type:'switch', status:'ok',
+      x:-32, y: 17, z: -12,
       lat:51.4750, lon:9.2900, floor:'SOHLE 1' },
-    { id:'dist-sw-02',  label:'DIST-SW-BETA',   type:'switch', status:'warning',
-      x: 28, y: 17, z: -8,
+    { id:'dist-sw-02',  label:'DIST-SW-BETA',      type:'switch', status:'warning',
+      x: 32, y: 17, z: -12,
       lat:51.5350, lon:9.3800, floor:'SOHLE 1' },
-    { id:'dist-sw-03',  label:'DIST-SW-GAMMA',  type:'switch', status:'ok',
-      x:  0, y: 17, z: 28,
+    { id:'dist-sw-03',  label:'DIST-SW-GAMMA',     type:'switch', status:'ok',
+      x:  0, y: 17, z:  35,
       lat:51.4900, lon:9.3900, floor:'SOHLE 1' },
 
-    // ── SOHLE 2  (~28 × 15 km) ────────────────────────────
-    { id:'web-01',      label:'web-server-01',  type:'host',   status:'ok',
-      x:-35, y:-18, z:-20,
+    // ── SOHLE 2  – Core + Hosts (Stern) ───────────────────
+    { id:'core-sw-s2',  label:'CORE-SW-SOHLE2',   type:'switch', status:'ok',
+      x:  0, y:-18, z:  0,
+      lat:51.5062, lon:9.3327, floor:'SOHLE 2' },
+    { id:'web-01',      label:'web-server-01',     type:'host',   status:'ok',
+      x:-38, y:-18, z:-22,
       lat:51.4400, lon:9.1500, floor:'SOHLE 2' },
-    { id:'web-02',      label:'web-server-02',  type:'host',   status:'critical',
-      x:-15, y:-18, z:-28,
+    { id:'web-02',      label:'web-server-02',     type:'host',   status:'critical',
+      x:-18, y:-18, z:-32,
       lat:51.4300, lon:9.1800, floor:'SOHLE 2' },
-    { id:'db-primary',  label:'db-primary',     type:'host',   status:'ok',
-      x: 15, y:-18, z:-28,
+    { id:'db-primary',  label:'db-primary',        type:'host',   status:'ok',
+      x: 18, y:-18, z:-32,
       lat:51.5650, lon:9.4700, floor:'SOHLE 2' },
-    { id:'db-replica',  label:'db-replica',     type:'host',   status:'warning',
-      x: 35, y:-18, z:-20,
+    { id:'db-replica',  label:'db-replica',        type:'host',   status:'warning',
+      x: 38, y:-18, z:-22,
       lat:51.5700, lon:9.4900, floor:'SOHLE 2' },
 
-    // ── SOHLE 3  (~22 × 12 km) ────────────────────────────
-    { id:'mon-01',      label:'monitoring-01',  type:'host',   status:'ok',
-      x: -8, y:-52, z: 30,
+    // ── SOHLE 3  – Core + Hosts (Stern) ───────────────────
+    { id:'core-sw-s3',  label:'CORE-SW-SOHLE3',   type:'switch', status:'ok',
+      x:  0, y:-52, z:  0,
+      lat:51.5062, lon:9.3327, floor:'SOHLE 3' },
+    { id:'mon-01',      label:'monitoring-01',     type:'host',   status:'ok',
+      x: -8, y:-52, z: 36,
       lat:51.4550, lon:9.2100, floor:'SOHLE 3' },
-    { id:'fw-01',       label:'firewall-01',    type:'host',   status:'down',
-      x: 12, y:-52, z: 36,
+    { id:'fw-01',       label:'firewall-01',       type:'host',   status:'down',
+      x: 30, y:-52, z: 22,
       lat:51.4450, lon:9.2300, floor:'SOHLE 3' },
-    { id:'backup-01',   label:'backup-srv-01',  type:'host',   status:'ok',
-      x:-30, y:-52, z:  5,
+    { id:'backup-01',   label:'backup-srv-01',     type:'host',   status:'ok',
+      x:-32, y:-52, z:  8,
       lat:51.5500, lon:9.4450, floor:'SOHLE 3' },
-    { id:'ldap-01',     label:'ldap-server',    type:'host',   status:'unknown',
-      x: 28, y:-52, z:  8,
+    { id:'ldap-01',     label:'ldap-server',       type:'host',   status:'unknown',
+      x: 28, y:-52, z:-20,
       lat:51.5400, lon:9.4200, floor:'SOHLE 3' },
 
     // ── AccessPoints (WLAN Heatmap) ────────────────────────
@@ -294,17 +543,27 @@ const MAP_DATA = {
       lat:51.5380, lon:9.3850, floor:'SOHLE 1' },
   ],
   links: [
-    { source:'core-sw-01', target:'dist-sw-01', status:'ok'       },
-    { source:'core-sw-01', target:'dist-sw-02', status:'warning'  },
-    { source:'core-sw-01', target:'dist-sw-03', status:'ok'       },
-    { source:'dist-sw-01', target:'web-01',     status:'ok'       },
-    { source:'dist-sw-01', target:'web-02',     status:'critical' },
-    { source:'dist-sw-02', target:'db-primary', status:'ok'       },
-    { source:'dist-sw-02', target:'db-replica', status:'warning'  },
-    { source:'dist-sw-03', target:'mon-01',     status:'ok'       },
-    { source:'dist-sw-03', target:'fw-01',      status:'down'     },
-    { source:'dist-sw-01', target:'backup-01',  status:'ok'       },
-    { source:'dist-sw-02', target:'ldap-01',    status:'unknown'  },
+    // ── Backbone: ÜBERTAGE → SOHLE 1 → SOHLE 2 → SOHLE 3 (Schacht) ──
+    { source:'core-sw-ot', target:'core-sw-s1', status:'ok'      },
+    { source:'core-sw-s1', target:'core-sw-s2', status:'ok'      },
+    { source:'core-sw-s2', target:'core-sw-s3', status:'warning' },
+
+    // ── SOHLE 1: Stern vom Core zu Dist-Switches ──────────
+    { source:'core-sw-s1', target:'dist-sw-01', status:'ok'      },
+    { source:'core-sw-s1', target:'dist-sw-02', status:'warning' },
+    { source:'core-sw-s1', target:'dist-sw-03', status:'ok'      },
+
+    // ── SOHLE 2: Stern vom Core zu Hosts ──────────────────
+    { source:'core-sw-s2', target:'web-01',     status:'ok'       },
+    { source:'core-sw-s2', target:'web-02',     status:'critical' },
+    { source:'core-sw-s2', target:'db-primary', status:'ok'       },
+    { source:'core-sw-s2', target:'db-replica', status:'warning'  },
+
+    // ── SOHLE 3: Stern vom Core zu Hosts ──────────────────
+    { source:'core-sw-s3', target:'mon-01',     status:'ok'      },
+    { source:'core-sw-s3', target:'fw-01',      status:'down'    },
+    { source:'core-sw-s3', target:'backup-01',  status:'ok'      },
+    { source:'core-sw-s3', target:'ldap-01',    status:'unknown' },
   ]
 };
 
@@ -317,6 +576,7 @@ class NV2Map3D {
     this.nodeObjects   = {};
     this.nodePositions = {};   // id → THREE.Vector3 (scene units)
     this.linkObjects   = [];
+    this.tunnelObjects = [];
     this.alertObjs     = [];
     this.autoOrbit     = true;
     this.flowSpeed     = 0.4;
@@ -377,8 +637,22 @@ class NV2Map3D {
 
   // ── Load / switch model ────────────────────────────────────
 
-  loadModel(cfg) {
+  async loadModel(cfg) {
+    // ── Fetch external data (cached after first load) ──────
+    const overlay = document.getElementById('load-overlay');
+    if (overlay) overlay.style.display = 'flex';
+    let data;
+    try {
+      data = await ModelManager.fetchData(cfg);
+    } catch (err) {
+      this._log(`Fehler beim Laden: ${err.message}`);
+      console.error(err);
+      if (overlay) overlay.style.display = 'none';
+      return;
+    }
+
     if (this._mode2D) this.exit2D();
+    this.data          = data;
     this._model        = cfg;
     this._activeFloors = buildFloors(cfg);
     this.nodePositions = {};
@@ -398,9 +672,14 @@ class NV2Map3D {
     this.linkObjects.forEach(({ line, spark }) => {
       this.scene.remove(line); this.scene.remove(spark);
     });
-    this.nodeObjects = {};
-    this.linkObjects = [];
-    this.alertObjs   = [];
+    this.tunnelObjects.forEach(({ tube, glow, spark }) => {
+      this.scene.remove(tube); this.scene.remove(glow); this.scene.remove(spark);
+      tube.geometry.dispose(); glow.geometry.dispose();
+    });
+    this.nodeObjects   = {};
+    this.linkObjects   = [];
+    this.tunnelObjects = [];
+    this.alertObjs     = [];
     this._buildNodes();
     this._buildLinks();
     this._buildFloors();
@@ -410,7 +689,9 @@ class NV2Map3D {
     if (nameEl) nameEl.textContent = cfg.name;
 
     history.replaceState(null, '', '#' + cfg.id);
-    this._log(`Model: ${cfg.name}`);
+    this._log(`Model: ${cfg.name} · ${data.nodes.length} Nodes`);
+    window.problemList?.update(this.data.nodes);
+    if (overlay) overlay.style.display = 'none';
   }
 
   // ── Scene ──────────────────────────────────────────────────
@@ -590,6 +871,8 @@ class NV2Map3D {
     this._floorPlates  = {};
     this._floorSceneWL = {};
 
+    if (this._model.type === 'datacenter') { this._buildDCLayout(); return; }
+
     // Normalise: largest floor → SCENE_MAX units
     const allW   = this._activeFloors.map(f => f.widthM  ?? 110);
     const allL   = this._activeFloors.map(f => f.lengthM ?? 110);
@@ -644,11 +927,115 @@ class NV2Map3D {
     });
   }
 
+  // ── Datacenter layout: Bodenplatte + Rack-Rahmen ───────────
+
+  _buildDCLayout() {
+    const cfg    = this._model;
+    const W      = (cfg.width  ?? 20) * 2;   // Szeneneinheiten (1 u = 0.5 m)
+    const L      = (cfg.length ?? 10) * 2;
+    const rows   = cfg.rows       ?? 3;
+    const rpRow  = cfg.racksPerRow ?? 5;
+    const rackH  = 8;    // 42 HE = 8 Szeneneinheiten
+    const rackW  = 1.4;
+    const rackD  = 0.8;
+
+    // Bodenplatte (Doppelboden)
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(W, L),
+      new THREE.MeshBasicMaterial({ color:0x0b1018, transparent:true, opacity:0.92, side:THREE.DoubleSide })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.1;
+    this.scene.add(floor); this._floorObjs.push(floor);
+
+    // Raster (Doppelbodenfliesen 0.6 m = 1.2 u)
+    const tileSize = 1.2;
+    const gridMat  = new THREE.LineBasicMaterial({ color:0x1c3a50, transparent:true, opacity:0.30 });
+    for (let x = -W/2; x <= W/2 + 0.01; x += tileSize) {
+      const l = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0,-L/2), new THREE.Vector3(x,0,L/2)]),
+        gridMat);
+      this.scene.add(l); this._floorObjs.push(l);
+    }
+    for (let z = -L/2; z <= L/2 + 0.01; z += tileSize) {
+      const l = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-W/2,0,z), new THREE.Vector3(W/2,0,z)]),
+        gridMat);
+      this.scene.add(l); this._floorObjs.push(l);
+    }
+
+    // Rack-Rahmen pro Reihe × Rack
+    const rowColors = [[0,180,220],[19,211,142],[200,120,50]];
+    for (let ri = 0; ri < rows; ri++) {
+      const rz = -L/2 + (ri + 1) * L / (rows + 1);
+      const [r,g,b] = rowColors[ri % rowColors.length];
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(r/255, g/255, b/255), transparent:true, opacity:0.55 });
+      const heMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(r/255, g/255, b/255), transparent:true, opacity:0.14 });
+
+      for (let xi = 0; xi < rpRow; xi++) {
+        const rx = -W/2 + (xi + 1) * W / (rpRow + 1);
+
+        // Rack-Rahmen (EdgesGeometry des Rack-Box)
+        const rack = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(rackW, rackH, rackD)),
+          edgeMat);
+        rack.position.set(rx, rackH / 2, rz);
+        this.scene.add(rack); this._floorObjs.push(rack);
+
+        // HE-Markierungslinien (alle 7 HE)
+        for (let u = 7; u < 42; u += 7) {
+          const uy = (u / 42) * rackH;
+          const shelf = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(rx - rackW/2, uy, rz - rackD/2),
+              new THREE.Vector3(rx + rackW/2, uy, rz - rackD/2),
+            ]), heMat);
+          this.scene.add(shelf); this._floorObjs.push(shelf);
+        }
+      }
+
+      // Reihen-Label
+      const rowName = String.fromCharCode(65 + ri);
+      const div = document.createElement('div');
+      div.className = 'node-label floor-label';
+      div.style.cssText = `color:rgba(${r},${g},${b},.65);border-color:rgba(${r},${g},${b},.2)`;
+      div.innerHTML = `<b>Reihe ${rowName}</b>`;
+      const lbl = new CSS2DObject(div);
+      lbl.position.set(-W/2 - 3, rackH / 2, rz);
+      this.scene.add(lbl); this._floorObjs.push(lbl);
+    }
+  }
+
   // ── Floor nav panel ────────────────────────────────────────
 
   _buildFloorNav() {
     const panel = document.getElementById('floor-panel');
     panel.innerHTML = '';
+
+    if (this._model.type === 'datacenter') {
+      const rows   = this._model.rows ?? 3;
+      const rowColors = [[0,180,220],[19,211,142],[200,120,50]];
+      const L      = (this._model.length ?? 10) * 2;
+      ['A','B','C','D','E'].slice(0, rows).forEach((name, i) => {
+        const [r,g,b] = rowColors[i % rowColors.length];
+        const rz = -L/2 + (i + 1) * L / (rows + 1);
+        const btn = document.createElement('button');
+        btn.className = 'floor-btn';
+        btn.innerHTML = `<span class="fb-label">Reihe ${name}</span>
+          <span class="fb-dot" style="background:rgba(${r},${g},${b},.7);box-shadow:0 0 5px rgba(${r},${g},${b},.5)"></span>`;
+        btn.onclick = () => {
+          this._setAutoOrbit(false);
+          this.camera.position.set(0, 12, rz + 28);
+          this.controls.target.set(0, 4, rz);
+          this.controls.update();
+        };
+        panel.appendChild(btn);
+      });
+      return;
+    }
+
     [...this._activeFloors].sort((a,b) => b.y - a.y).forEach(fc => {
       const [r,g,b_] = fc.accent;
       const row = document.createElement('div');
@@ -695,6 +1082,8 @@ class NV2Map3D {
     this._applyFloorVisibility(floorY);
     if (this._floorPlates[floorY])
       this._floorPlates[floorY].opacity = parseFloat(document.getElementById('floor-opacity').value) / 100;
+    // Heatmaps in 2D stark abdunkeln, damit Nodes erkennbar bleiben
+    Object.values(this._wifiMeshes).forEach(m => { m.material.opacity = 0.22; });
 
     document.getElementById('view-badge').classList.add('active');
     document.getElementById('vb-floor-name').textContent = fc?.label ?? floorY;
@@ -717,6 +1106,7 @@ class NV2Map3D {
     this.controls.enableRotate  = true;
     this._showAll();
     Object.values(this._floorPlates).forEach(m => m.opacity = 0.72);
+    Object.values(this._wifiMeshes).forEach(m => { m.material.opacity = 1.0; });
     document.getElementById('view-badge').classList.remove('active');
     document.getElementById('panel-2d').classList.remove('visible');
     document.getElementById('ctrl-hint').textContent = '🖱 Drehen · Rechte Taste: Schieben · Rad: Zoom';
@@ -734,6 +1124,11 @@ class NV2Map3D {
       const show = Math.abs(srcY - activeY) < 8 && Math.abs(tgtY - activeY) < 8;
       line.visible = show; spark.visible = show;
     });
+    // Tunnel: sichtbar wenn mindestens ein Endpunkt auf dieser Etage liegt
+    this.tunnelObjects.forEach(({ tube, glow, spark, srcY, tgtY }) => {
+      const show = Math.abs(srcY - activeY) < 8 || Math.abs(tgtY - activeY) < 8;
+      tube.visible = show; glow.visible = show; spark.visible = show;
+    });
     Object.entries(this._bgMeshes).forEach(([y, mesh]) => {
       mesh.visible = parseFloat(y) === activeY;
     });
@@ -743,6 +1138,7 @@ class NV2Map3D {
     this._floorObjs.forEach(o => o.visible = true);
     Object.values(this.nodeObjects).forEach(g => g.visible = true);
     this.linkObjects.forEach(({ line, spark }) => { line.visible = true; spark.visible = true; });
+    this.tunnelObjects.forEach(({ tube, glow, spark }) => { tube.visible = true; glow.visible = true; spark.visible = true; });
     Object.values(this._bgMeshes).forEach(m => m.visible = false);
   }
 
@@ -794,7 +1190,18 @@ class NV2Map3D {
       roughness: 0.45, metalness: 0.55,
     });
 
-    if (node.type === 'accesspoint') {
+    if (node.type === 'server') {
+      // 1U-Server-Slab: breite flache Box (passend in Rack-Rahmen)
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.16, 0.55), mat);
+      // Status-LED als kleiner Leuchtpunkt
+      const led = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 6, 4),
+        new THREE.MeshBasicMaterial({ color: cfg.hex })
+      );
+      led.position.set(0.38, 0.10, -0.22);
+      group.add(mesh); group.add(led);
+      if (al(node.status)) this.alertObjs.push(mesh);
+    } else if (node.type === 'accesspoint') {
       // Disc body + antenna
       const body    = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 0.55, 16), mat);
       const antenna = new THREE.Mesh(
@@ -822,10 +1229,10 @@ class NV2Map3D {
       group.add(Object.assign(new THREE.PointLight(cfg.hex, 0.9, 22), {}));
 
     const div = document.createElement('div');
-    div.className = 'node-label';
-    div.textContent = node.label;
+    div.className = node.linkedModel ? 'node-label node-label--portal' : 'node-label';
+    div.textContent = node.linkedModel ? `⇒ ${node.label}` : node.label;
     const lbl = new CSS2DObject(div);
-    lbl.position.set(0, node.type === 'switch' ? 2.2 : 3.8, 0);
+    lbl.position.set(0, node.type === 'server' ? 0.4 : node.type === 'switch' ? 2.2 : 3.8, 0);
     group.add(lbl);
     return group;
   }
@@ -833,10 +1240,18 @@ class NV2Map3D {
   // ── Links ──────────────────────────────────────────────────
 
   _buildLinks() {
+    if (this._model.type === 'datacenter') return;   // DC: Verbindungen werden nicht visualisiert
+    const nodeMap = new Map(this.data.nodes.map(n => [n.id, n]));
     this.data.links.forEach(link => {
       const start = this.nodePositions[link.source];
       const end   = this.nodePositions[link.target];
       if (!start || !end) return;
+      // Auto-Tunnel: beide Nodes unterirdisch (SOHLE) + Distanz > Schwellenwert
+      const srcFloor = nodeMap.get(link.source)?.floor ?? '';
+      const tgtFloor = nodeMap.get(link.target)?.floor ?? '';
+      const bothUnderground = srcFloor.includes('SOHLE') && tgtFloor.includes('SOHLE');
+      const isTunnel = link.tunnel || (bothUnderground && start.distanceTo(end) > TUNNEL_MIN_DIST);
+      if (isTunnel) { this._buildTunnelLink(link, start, end); return; }
       const cfg = S(link.status), isAl = al(link.status);
       const op  = isAl ? 0.75 : link.status === 'warning' ? 0.38 : 0.18;
 
@@ -862,6 +1277,58 @@ class NV2Map3D {
         srcY: srcNode ? (this.nodePositions[srcNode.id]?.y ?? 0) : 0,
         tgtY: tgtNode ? (this.nodePositions[tgtNode.id]?.y ?? 0) : 0,
       });
+    });
+  }
+
+  // ── Tunnel link (Untertage Switch-Backbone) ────────────────
+  //  TubeGeometry entlang einer leicht gebogenen Kurve +
+  //  größere Glow-Shell (BackSide + AdditiveBlending) wie ein Stollen.
+
+  _buildTunnelLink(link, start, end) {
+    const cfg      = S(link.status);
+    const isBuilding = this._model.type === 'building';
+    const isDC       = this._model.type === 'datacenter';
+
+    // Mine: Bogen nach unten,  Gebäude/DC: Bogen nach oben (Kabelkanal/Patchkabel)
+    const mid = start.clone().lerp(end, 0.5);
+    mid.y += isDC ? 1.5 : isBuilding ? +3 : -4;
+    const curve = new THREE.CatmullRomCurve3([start.clone(), mid, end.clone()]);
+
+    // Rohrmaße: Mine → dicker/heller,  Gebäude → dünn,  DC → sehr dünn (Patchkabel)
+    const rInner  = isDC ? 0.10 : isBuilding ? 0.25 : 0.65;
+    const rOuter  = isDC ? 0.55 : isBuilding ? 1.4  : 3.2;
+    const opInner = isDC ? 0.75 : isBuilding ? 0.65 : 0.55;
+    const opOuter = isDC ? 0.18 : isBuilding ? 0.13 : 0.10;
+
+    // Inneres Rohr
+    const tubeMat = new THREE.MeshBasicMaterial({
+      color: cfg.hex, transparent: true, opacity: opInner, depthWrite: false,
+    });
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, rInner, 8, false), tubeMat);
+    this.scene.add(tube);
+
+    // Äußere Glow-Shell
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: cfg.hex, transparent: true, opacity: opOuter,
+      blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false,
+    });
+    const glow = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, rOuter, 8, false), glowMat);
+    this.scene.add(glow);
+
+    // Spark – folgt der Kurve via getPoint(t)
+    const spark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 8, 6),
+      new THREE.MeshBasicMaterial({ color: cfg.hex, blending: THREE.AdditiveBlending }),
+    );
+    this.scene.add(spark);
+
+    const srcNode = this.data.nodes.find(n => n.id === link.source);
+    const tgtNode = this.data.nodes.find(n => n.id === link.target);
+    this.tunnelObjects.push({
+      tube, glow, spark, curve,
+      prog: Math.random(),
+      srcY: srcNode ? start.y : 0,
+      tgtY: tgtNode ? end.y   : 0,
     });
   }
 
@@ -920,7 +1387,7 @@ class NV2Map3D {
   resetCam() {
     if (this._mode2D) this.exit2D();
     this._setAutoOrbit(true);
-    this.camera.position.set(130, 80, 130);
+    this.camera.position.set(90, 50, 90);
     this.controls.target.set(0, 0, 0);
   }
 
@@ -1149,6 +1616,22 @@ class NV2Map3D {
       ${dbmLine}
       ${pos ? `<div class="m-row"><span>Scene X/Y/Z</span><b>${pos.x.toFixed(1)} / ${pos.y.toFixed(1)} / ${pos.z.toFixed(1)}</b></div>` : ''}
     `;
+    // Modell-Wechsel-Button für Portal-Nodes
+    const foot = document.getElementById('ins-foot');
+    const existingPortalBtn = foot.querySelector('.btn-portal');
+    if (existingPortalBtn) existingPortalBtn.remove();
+    if (data.linkedModel) {
+      const target = ModelManager.getById(data.linkedModel);
+      if (target) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-portal';
+        btn.style.cssText = 'flex:1;background:#0d2a3a;border-color:#13b0f5;color:#13b0f5';
+        btn.textContent = `⇒ ${target.name}`;
+        btn.onclick = () => { this.closeInspector(); this.loadModel(target); };
+        foot.appendChild(btn);
+      }
+    }
+
     document.getElementById('inspector').classList.add('open');
     this._log(`Selected: ${data.label} [${cfg.label}]`);
   }
@@ -1216,9 +1699,9 @@ class NV2Map3D {
     const t = Date.now() * 0.001;
 
     if (this.autoOrbit) {
-      this.camera.position.x = Math.sin(t * 0.10) * 140;
-      this.camera.position.z = Math.cos(t * 0.10) * 140;
-      this.camera.position.y = 70 + Math.sin(t * 0.05) * 25;
+      this.camera.position.x = Math.sin(t * 0.10) * 90;
+      this.camera.position.z = Math.cos(t * 0.10) * 90;
+      this.camera.position.y = 50 + Math.sin(t * 0.05) * 18;
       this.camera.lookAt(0, 0, 0);
     } else {
       this.controls.update();
@@ -1235,6 +1718,13 @@ class NV2Map3D {
       if (!s.spark.visible) return;
       s.prog += step; if (s.prog > 1) s.prog = 0;
       s.spark.position.lerpVectors(s.start, s.end, s.prog);
+    });
+    // Tunnel sparks: folgen der Kurve (langsamerer Flow für realistischen Tunnel-Feel)
+    const tstep = step * 0.65;
+    this.tunnelObjects.forEach(s => {
+      if (!s.spark.visible) return;
+      s.prog += tstep; if (s.prog > 1) s.prog = 0;
+      s.spark.position.copy(s.curve.getPoint(s.prog));
     });
 
     // ── Pulse rings (expand + fade on alert transition) ──────
@@ -1416,12 +1906,19 @@ class ModelDialog {
 // ─────────────────────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────────────────────
-const initialModel     = ModelManager.getInitial();
-window.app         = new NV2Map3D(MAP_DATA, initialModel);
-window.modelDialog = new ModelDialog(window.app);
-window.problemList = new ProblemList(window.app);
+(async () => {
+  const initialModel = ModelManager.getInitial();
 
-document.getElementById('btn-model-name').textContent = initialModel.name;
-window.problemList.update(MAP_DATA.nodes);
+  // Construct with empty data; loadModel() will fetch + populate
+  window.app         = new NV2Map3D({ nodes: [], links: [] }, initialModel);
+  window.modelDialog = new ModelDialog(window.app);
+  window.problemList = new ProblemList(window.app);
 
-// WS:  app.connectWS('ws://localhost:8008/ws/map/my-map');
+  document.getElementById('btn-model-name').textContent = initialModel.name;
+  await window.app.loadModel(initialModel);
+
+  // Optional: load additional models from an external registry
+  // await ModelManager.loadRegistry('models.json');
+
+  // WS:  app.connectWS('ws://localhost:8008/ws/map/my-map');
+})();
