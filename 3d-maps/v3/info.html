@@ -185,8 +185,10 @@
   <a href="#nodes">Nodes</a>
   <a href="#links">Links</a>
   <a href="#models">Modelle</a>
+  <a href="#data">Datendateien</a>
   <a href="#examples">Beispiele</a>
   <a href="#ws">WebSocket</a>
+  <a href="#shortcuts">Shortcuts</a>
   <a href="index.html" class="nav-back">← Karte öffnen</a>
 </nav>
 
@@ -194,8 +196,10 @@
 
   <h1>Datenreferenz &amp; Node-Spezifikation</h1>
   <p class="lead">
-    Beschreibt alle Felder, die ein Node oder Link in <code>MAP_DATA</code> / <code>BUILDING_DATA</code>
+    Beschreibt alle Felder, die ein Node oder Link in einer externen JSON-Datei (<code>data/*.json</code>)
     benötigt, um korrekt platziert, gerendert und animiert zu werden.
+    Modelle werden über <code>dataUrl</code> in <code>MODEL_PRESETS[]</code> verknüpft
+    oder aus der Registry <code>models.json</code> geladen.
   </p>
 
   <div class="toc">
@@ -406,27 +410,29 @@
   <section id="models">
     <h2>4 · Modell-Konfiguration</h2>
 
-    <p>Modelle werden in <code>MODEL_PRESETS[]</code> in <code>app.js</code> definiert.</p>
+    <p>Modelle werden in <code>MODEL_PRESETS[]</code> in <code>app.js</code> definiert
+    oder über <a href="#data">models.json</a> nachgeladen. Node-/Link-Daten liegen in
+    externen JSON-Dateien und werden per <code>dataUrl</code> referenziert.</p>
 
-    <h3>Gebäudemodell-Felder</h3>
+    <h3>Gebäudemodell-Felder (<code>type: 'building'</code>)</h3>
     <table class="field-table">
       <thead>
         <tr><th>Feld</th><th>Typ</th><th>Beschreibung</th></tr>
       </thead>
       <tbody>
-        <tr><td><code>id</code></td><td><code>string</code></td><td>Eindeutiger Bezeichner (wird im URL-Hash verwendet).</td></tr>
-        <tr><td><code>name</code></td><td><code>string</code></td><td>Anzeigename im Modell-Dialog.</td></tr>
-        <tr><td><code>type</code></td><td><code>'building'</code></td><td>Schaltet statische Koordinaten und Gebäude-Rendering ein.</td></tr>
-        <tr><td><code>floorCount</code></td><td><code>number</code></td><td>Anzahl der Etagen (EG + OGs). Min 2, Max 20.</td></tr>
-        <tr><td><code>floorHeight</code></td><td><code>number</code></td><td>Reale Etagenhöhe in Metern (nur für Beschriftung / Sub-Label).</td></tr>
+        <tr><td><code>id</code></td><td><code>string</code></td><td>Eindeutiger Bezeichner (URL-Hash).</td></tr>
+        <tr><td><code>name</code></td><td><code>string</code></td><td>Anzeigename im Modell-Dialog und OSM-Karte.</td></tr>
+        <tr><td><code>type</code></td><td><code>'building'</code></td><td>Statische Koordinaten, Etagenplatten, Kabelkanal-Tunnel.</td></tr>
+        <tr><td><code>floorCount</code></td><td><code>number</code></td><td>Anzahl Etagen (EG + OGs). Min 2, Max 20.</td></tr>
+        <tr><td><code>floorHeight</code></td><td><code>number</code></td><td>Etagenhöhe in Metern (nur Sub-Label).</td></tr>
         <tr><td><code>width</code></td><td><code>number</code></td><td>Gebäudebreite in Metern (Etagenplatte).</td></tr>
         <tr><td><code>length</code></td><td><code>number</code></td><td>Gebäudelänge in Metern (Etagenplatte).</td></tr>
-        <tr><td><code>lat</code>, <code>lon</code></td><td><code>number</code></td><td>GPS-Koordinaten des Gebäudes (für Beschriftung, derzeit nicht projiziert).</td></tr>
-        <tr><td><code>data</code></td><td><code>object</code></td><td>Referenz auf den Datensatz (<code>BUILDING_DATA</code> oder eigenes Objekt). Fehlt dieser Eintrag, wird <code>MAP_DATA</code> (Gruben-Demo) verwendet.</td></tr>
+        <tr><td><code>lat</code>, <code>lon</code></td><td><code>number</code></td><td>GPS-Koordinate — erscheint als Marker auf der OSM-Übersichtskarte.</td></tr>
+        <tr><td><code>dataUrl</code></td><td><code>string</code></td><td>Pfad zur JSON-Datendatei, z.B. <code>'data/building.json'</code>. Wird gecacht.</td></tr>
       </tbody>
     </table>
 
-    <h3>Grubenmodell-Felder</h3>
+    <h3>Grubenmodell-Felder (<code>type: 'mine'</code>)</h3>
     <table class="field-table">
       <thead>
         <tr><th>Feld</th><th>Typ</th><th>Beschreibung</th></tr>
@@ -434,11 +440,29 @@
       <tbody>
         <tr><td><code>id</code></td><td><code>string</code></td><td>Eindeutiger Bezeichner.</td></tr>
         <tr><td><code>name</code></td><td><code>string</code></td><td>Anzeigename.</td></tr>
-        <tr><td><code>type</code></td><td><code>'mine'</code></td><td>Schaltet Geo-Projektion und Gruben-Rendering ein.</td></tr>
-        <tr><td><code>floorHeight</code></td><td><code>number</code></td><td>Reale Teufendifferenz pro Sohle in Metern (Sub-Label: „−300 m").</td></tr>
-        <tr><td><code>lat</code>, <code>lon</code></td><td><code>number</code></td><td>Referenzpunkt für die Geo-Projektion (z.B. Schacht-Koordinate).</td></tr>
-        <tr><td><code>floors[]</code></td><td><code>array</code></td><td>Etagenliste mit <code>label</code> (z.B. <code>"SOHLE 1"</code>) und optionalem <code>sub</code> (Anzeige-Subtext).</td></tr>
-        <tr><td><code>data</code></td><td><code>object</code></td><td>Optional. Eigener Datensatz. Standard: globale <code>MAP_DATA</code>.</td></tr>
+        <tr><td><code>type</code></td><td><code>'mine'</code></td><td>Geo-Projektion über lat/lon, Stollen-Tunnel-Glow.</td></tr>
+        <tr><td><code>floorHeight</code></td><td><code>number</code></td><td>Teufendifferenz pro Sohle in Metern (Sub-Label: „−300 m").</td></tr>
+        <tr><td><code>lat</code>, <code>lon</code></td><td><code>number</code></td><td>Schacht-Referenzkoordinate für Geo-Projektion + OSM-Marker.</td></tr>
+        <tr><td><code>floors[]</code></td><td><code>array</code></td><td>Sohlen-Liste: <code>{ label, sub }</code>. Label muss exakt dem <code>floor</code>-Feld der Nodes entsprechen.</td></tr>
+        <tr><td><code>dataUrl</code></td><td><code>string</code></td><td>Pfad zur JSON-Datendatei, z.B. <code>'data/grube1.json'</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Datacenter-Felder (<code>type: 'datacenter'</code>)</h3>
+    <table class="field-table">
+      <thead>
+        <tr><th>Feld</th><th>Typ</th><th>Beschreibung</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>id</code></td><td><code>string</code></td><td>Eindeutiger Bezeichner.</td></tr>
+        <tr><td><code>name</code></td><td><code>string</code></td><td>Anzeigename.</td></tr>
+        <tr><td><code>type</code></td><td><code>'datacenter'</code></td><td>Rack-Layout, Server-Meshes, Link-Visualisierung deaktiviert.</td></tr>
+        <tr><td><code>width</code></td><td><code>number</code></td><td>Raumbreite in Metern.</td></tr>
+        <tr><td><code>length</code></td><td><code>number</code></td><td>Raumlänge in Metern.</td></tr>
+        <tr><td><code>rows</code></td><td><code>number</code></td><td>Anzahl Rack-Reihen (A, B, C …).</td></tr>
+        <tr><td><code>racksPerRow</code></td><td><code>number</code></td><td>Racks pro Reihe.</td></tr>
+        <tr><td><code>rackUnits</code></td><td><code>number</code></td><td>Höheneinheiten pro Rack (Standard: 42 HE).</td></tr>
+        <tr><td><code>dataUrl</code></td><td><code>string</code></td><td>Pfad zur JSON-Datendatei, z.B. <code>'data/dc1.json'</code>.</td></tr>
       </tbody>
     </table>
 
@@ -539,21 +563,49 @@
   <span class="n">tunnel</span>: <span class="k">true</span>,             <span class="c">// Kabelkanal-Glow (Gebäude) oder Stollen-Glow (Grube)</span>
 }</pre>
 
-    <h3>Eigenes Modell-Preset</h3>
-    <pre><span class="c">// In MODEL_PRESETS[] eintragen:</span>
+    <h3>Portal-Node (Modell-Verknüpfung)</h3>
+    <pre><span class="c">// linkedModel verweist auf die id eines anderen Modells.
+// → pulsierendes ⇒-Label + "Innenansicht öffnen"-Button im Inspector.</span>
+{
+  <span class="n">id</span>:           <span class="s">'portal-to-dc'</span>,
+  <span class="n">label</span>:        <span class="s">'Datacenter-Raum'</span>,
+  <span class="n">type</span>:         <span class="s">'host'</span>,
+  <span class="n">status</span>:       <span class="s">'ok'</span>,
+  <span class="n">floor</span>:        <span class="s">'EG'</span>,
+  <span class="n">x</span>: <span class="v">-35</span>, <span class="n">y</span>: <span class="v">-52</span>, <span class="n">z</span>: <span class="v">-35</span>,
+  <span class="n">linkedModel</span>:  <span class="s">'dc1'</span>,       <span class="c">// id des Ziel-Modells</span>
+}</pre>
+
+    <h3>Server-Node (Datacenter)</h3>
+    <pre><span class="c">// type:'server' → flaches 1HE-Mesh mit Status-LED.
+// Y-Achse: 0 = Rack-Boden, 8 = Rack-Decke (42 HE ≙ 8 Szeneneinheiten)</span>
+{
+  <span class="n">id</span>:     <span class="s">'web-dc-01'</span>,
+  <span class="n">label</span>:  <span class="s">'web-dc-01'</span>,
+  <span class="n">type</span>:   <span class="s">'server'</span>,
+  <span class="n">status</span>: <span class="s">'ok'</span>,
+  <span class="n">floor</span>:  <span class="s">'Datacenter'</span>,
+  <span class="n">x</span>: <span class="v">-13</span>, <span class="n">y</span>: <span class="v">1.0</span>, <span class="n">z</span>: <span class="v">0</span>,   <span class="c">// y ≈ 1–2: unteres Drittel, 4–5: Mitte, 6–7: oben</span>
+}</pre>
+
+    <h3>Eigenes Modell-Preset (externe Datei)</h3>
+    <pre><span class="c">// In MODEL_PRESETS[] in app.js eintragen:</span>
 {
   <span class="n">id</span>:          <span class="s">'werk-nord'</span>,
   <span class="n">name</span>:        <span class="s">'Werk Nord'</span>,
   <span class="n">type</span>:        <span class="s">'mine'</span>,
-  <span class="n">floorHeight</span>: <span class="v">250</span>,           <span class="c">// Meter pro Sohle</span>
-  <span class="n">lat</span>: <span class="v">51.48</span>, <span class="n">lon</span>: <span class="v">9.31</span>,     <span class="c">// Schacht-Referenzkoordinate</span>
+  <span class="n">floorHeight</span>: <span class="v">250</span>,
+  <span class="n">lat</span>: <span class="v">51.48</span>, <span class="n">lon</span>: <span class="v">9.31</span>,
   <span class="n">floors</span>: [
     { <span class="n">label</span>: <span class="s">'ÜBERTAGE'</span>, <span class="n">sub</span>: <span class="s">'Schachtanlage'</span> },
     { <span class="n">label</span>: <span class="s">'SOHLE 1'</span>,  <span class="n">sub</span>: <span class="s">'−250 m'</span> },
     { <span class="n">label</span>: <span class="s">'SOHLE 2'</span>,  <span class="n">sub</span>: <span class="s">'−500 m'</span> },
   ],
-  <span class="n">data</span>: WERK_NORD_DATA,       <span class="c">// eigener { nodes:[], links:[] } Datensatz</span>
-}</pre>
+  <span class="n">dataUrl</span>: <span class="s">'data/werk-nord.json'</span>,  <span class="c">// externe JSON-Datei (gecacht nach erstem Laden)</span>
+}
+
+<span class="c">// data/werk-nord.json (Struktur):</span>
+{ <span class="n">"nodes"</span>: [ <span class="c">/* Node-Objekte */</span> ], <span class="n">"links"</span>: [ <span class="c">/* Link-Objekte */</span> ] }</pre>
   </section>
 
   <!-- ══════════════════════════════════════════════════════════ -->
@@ -578,12 +630,96 @@ app.connectWS(<span class="s">'ws://nagios-server:8008/ws/map/my-map'</span>);</
 
     <div class="warn-box">
       <strong>Hinweis:</strong> Das Feld <code>id</code> im WebSocket-Update muss exakt der
-      <code>id</code> des entsprechenden Nodes in <code>MAP_DATA</code> entsprechen.
+      <code>id</code> des entsprechenden Nodes im geladenen Datensatz entsprechen.
       Unbekannte IDs werden stillschweigend ignoriert.
     </div>
 
     <p>Bei einem Statuswechsel auf <code>critical</code> oder <code>down</code> werden automatisch
     Pulsringe um den betroffenen Node gespawnt.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="data">
+    <h2>8 · Externe Datendateien &amp; Registry</h2>
+
+    <p>Alle Node-/Link-Daten liegen als separate JSON-Dateien im Ordner <code>data/</code>.
+    Das ermöglicht beliebig viele Standorte ohne <code>app.js</code> anzufassen.</p>
+
+    <h3>Dateistruktur</h3>
+    <pre>v3/
+├── app.js
+├── index.html
+├── models.json          <span class="c">← optionale externe Registry</span>
+└── data/
+    ├── building.json
+    ├── dc1.json
+    ├── grube1.json
+    └── grube2.json</pre>
+
+    <h3>JSON-Dateiformat (<code>data/*.json</code>)</h3>
+    <pre>{
+  <span class="n">"nodes"</span>: [ <span class="c">/* Node-Objekte – identisch zu inline-Daten */</span> ],
+  <span class="n">"links"</span>: [ <span class="c">/* Link-Objekte */</span> ]
+}</pre>
+
+    <h3>Modell-Registry (<code>models.json</code>)</h3>
+    <p>Optionale externe Liste aller Modelle. Wird über
+    <code>ModelManager.loadRegistry('models.json')</code> geladen (im Boot-Abschnitt
+    von <code>app.js</code> auskommentiert). Format: Array von Modell-Preset-Objekten
+    mit <code>dataUrl</code> statt inline-<code>data</code>.</p>
+    <pre>[
+  {
+    <span class="n">"id"</span>:       <span class="s">"grube1"</span>,
+    <span class="n">"name"</span>:     <span class="s">"Grube 1 · Heringen"</span>,
+    <span class="n">"type"</span>:     <span class="s">"mine"</span>,
+    <span class="n">"lat"</span>: <span class="v">50.8922</span>, <span class="n">"lon"</span>: <span class="v">9.8979</span>,
+    <span class="n">"dataUrl"</span>:  <span class="s">"data/grube1.json"</span>,
+    <span class="n">"floors"</span>: [ <span class="c">/* ... */</span> ]
+  }
+]</pre>
+
+    <div class="note">
+      Bereits in <code>MODEL_PRESETS[]</code> vorhandene IDs werden beim Registry-Laden
+      übersprungen — keine Duplikate.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="shortcuts">
+    <h2>9 · Tastatur-Shortcuts &amp; UI</h2>
+
+    <table class="field-table">
+      <thead>
+        <tr><th>Taste / Aktion</th><th>Funktion</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>M</code></td><td>OSM-Übersichtskarte öffnen / schließen</td></tr>
+        <tr><td><code>Ctrl+F</code></td><td>Host-Suche fokussieren</td></tr>
+        <tr><td><code>Escape</code></td><td>Inspector schließen · 2D-Modus verlassen · Cockpit beenden · Suche leeren</td></tr>
+        <tr><td>Mausrad</td><td>Zoom</td></tr>
+        <tr><td>Linke Maustaste ziehen</td><td>Szene drehen (deaktiviert Auto-Orbit)</td></tr>
+        <tr><td>Rechte Maustaste ziehen</td><td>Szene verschieben</td></tr>
+        <tr><td>Node anklicken</td><td>Inspector öffnen</td></tr>
+        <tr><td>Etagen-Button (rechts)</td><td>2D-Grundrissansicht der Etage</td></tr>
+      </tbody>
+    </table>
+
+    <h3>HUD-Buttons</h3>
+    <table class="field-table">
+      <thead>
+        <tr><th>Button</th><th>Funktion</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>🗺</td><td>OSM-Übersichtskarte (alle Standorte mit lat/lon als Marker)</td></tr>
+        <tr><td>?</td><td>Diese Dokumentationsseite</td></tr>
+        <tr><td>⚡</td><td>Cockpit-Modus (nur Hosts mit Problem)</td></tr>
+        <tr><td>⚑ n</td><td>Problemliste (alle kritischen / down Hosts)</td></tr>
+        <tr><td>Modellname ▾</td><td>Modell wechseln / neues Modell anlegen</td></tr>
+        <tr><td>Auto-Orbit</td><td>Kamera-Rotation ein/aus</td></tr>
+        <tr><td>ORBIT RADIUS</td><td>Abstand der Orbit-Kamera (30–250 Szeneneinheiten)</td></tr>
+        <tr><td>FLOW SPEED</td><td>Geschwindigkeit der Datenfluss-Animation auf Links</td></tr>
+      </tbody>
+    </table>
   </section>
 
 </div><!-- /page -->

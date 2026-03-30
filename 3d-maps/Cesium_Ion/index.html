@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Mine-Net Control Center | Final POC</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+    #cesiumContainer { width: 100%; height: 100vh; }
+    
+    #ui-panel {
+      position: absolute; top: 20px; left: 20px; z-index: 100;
+      background: rgba(20, 20, 20, 0.95); color: white; padding: 20px;
+      border: 1px solid #444; border-radius: 10px; width: 300px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h3 { margin: 0 0 15px 0; color: #00d4ff; border-bottom: 1px solid #444; }
+    select { 
+      width: 100%; padding: 12px; margin: 10px 0; 
+      background: #111; color: #00ffcc; border: 1px solid #555; border-radius: 4px;
+    }
+    .btn-main {
+      width: 100%; padding: 12px; background: #00d4ff; color: #000; 
+      border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
+      margin-top: 10px; display: none; /* Wird sichtbar wenn Standort gewählt */
+    }
+    #loading-hint { color: #ffcc00; font-size: 0.9em; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+  <div id="ui-panel">
+    <h3>Network Skyview</h3>
+    <div id="loading-hint">Suche location.json...</div>
+    
+    <label>Standort auswählen:</label>
+    <select id="site-select"><option value="">-- Lade Daten... --</option></select>
+
+    <button id="jump-to-threejs" class="btn-main">DETAILLIERTE INNENANSICHT</button>
+
+    <div style="margin-top: 15px; font-size: 0.85em;">
+      <input type="checkbox" id="xray-toggle" checked> <label>Röntgenblick aktiv</label>
+    </div>
+  </div>
+
+  <div id="cesiumContainer"></div>
+
+  <script>
+    // --- 1. TOKEN ---
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiNjg5NjNlMy04ZmQ3LTQxNjgtYWM4Mi1mZjU1NmY4YjFmMGUiLCJpZCI6NDExMDM0LCJpYXQiOjE3NzQ4Mzk1MTF9.RQ_1e40iMuK3LpJnnB17Bu3wCNYwwqHgBzsi0mEfGgA';
+    
+    let viewer;
+    let allSites = [];
+    let selectedSiteId = null;
+
+    async function initApp() {
+      try {
+        viewer = new Cesium.Viewer('cesiumContainer', {
+          terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(1),
+          baseLayerPicker: false, geocoder: false, infoBox: true, selectionIndicator: true
+        });
+
+        // --- SANDBOX FIX ---
+        if (viewer.infoBox) {
+          viewer.infoBox.frame.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-popups allow-forms');
+        }
+
+        viewer.scene.globe.depthTestAgainstTerrain = true;
+        viewer.scene.globe.translucency.enabled = true;
+        viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+
+        await loadData();
+      } catch (error) {
+        document.getElementById('loading-hint').innerText = "Fehler: Token oder Verbindung prüfen.";
+      }
+    }
+
+    async function loadData() {
+      // Wir suchen nacheinander nach beiden Dateinamen
+      const fileNames = ['location.json', 'locations.json'];
+      let foundFile = null;
+
+      for (const name of fileNames) {
+        try {
+          const check = await fetch(`./${name}`);
+          if (check.ok) { foundFile = name; break; }
+        } catch(e) {}
+      }
+
+      if (!foundFile) {
+        document.getElementById('loading-hint').innerHTML = "<span style='color:red;'>DATEI NICHT GEFUNDEN!</span><br>Prüfe: location.json im Ordner Cesium_Ion?";
+        return;
+      }
+
+      try {
+        const response = await fetch(`./${foundFile}?nocache=${Date.now()}`);
+        allSites = await response.json();
+        renderSites(allSites);
+        document.getElementById('loading-hint').style.display = 'none';
+      } catch (e) {
+        document.getElementById('loading-hint').innerText = "JSON Syntax Fehler!";
+      }
+    }
+
+    // Status → Cesium-Farbe
+    const STATUS_COLOR = {
+      ok:       Cesium.Color.fromCssColorString('#27ae60'),
+      warning:  Cesium.Color.fromCssColorString('#e67e22'),
+      critical: Cesium.Color.fromCssColorString('#e74c3c'),
+      down:     Cesium.Color.fromCssColorString('#c0392b'),
+      unknown:  Cesium.Color.fromCssColorString('#7f8c8d'),
+    };
+
+    function renderSites(sites) {
+      const select = document.getElementById('site-select');
+      select.innerHTML = '<option value="">-- Bitte wählen --</option>';
+
+      sites.forEach((site, index) => {
+        const sId   = site.id || `id-${index}`;
+        const color = STATUS_COLOR[site.status] ?? STATUS_COLOR.unknown;
+
+        const opt = document.createElement('option');
+        opt.value = sId;
+        opt.innerText = site.name || sId;
+        select.appendChild(opt);
+
+        // Marker auf der Karte  (coords: [lon, lat])
+        const entity = viewer.entities.add({
+          id: sId,
+          name: site.name,
+          position: Cesium.Cartesian3.fromDegrees(site.coords[0], site.coords[1], 0),
+          description: `
+            <div style="color:white;font-family:sans-serif;padding:4px">
+               <p style="margin:4px 0">Typ: ${site.type || '–'}</p>
+               <p style="margin:4px 0">Status: ${site.status || 'Unbekannt'}</p>
+               <button onclick="openInternalView('${sId}')"
+                 style="padding:8px;width:100%;margin-top:8px;
+                        background:#00d4ff;color:#000;border:none;cursor:pointer;font-weight:bold;">
+                 Innenansicht öffnen
+               </button>
+            </div>`,
+          point: { pixelSize: 12, color, outlineColor: Cesium.Color.WHITE, outlineWidth: 1 }
+        });
+
+        // Untertage-Struktur
+        if (site.type === 'mine' && site.sohlen) {
+            site.sohlen.forEach(sohle => {
+                if(sohle.nodes) {
+                    sohle.nodes.forEach(node => {
+                        const nodePos = Cesium.Cartesian3.fromDegrees(site.coords[0] + (node.offset ? node.offset[0] : 0), site.coords[1] + (node.offset ? node.offset[1] : 0), sohle.depth);
+                        viewer.entities.add({
+                            position: nodePos, parent: entity,
+                            point: { pixelSize: 6, color: Cesium.Color.CYAN },
+                            polyline: { positions: [Cesium.Cartesian3.fromDegrees(site.coords[0], site.coords[1], 0), nodePos], width: 1, material: Cesium.Color.CYAN.withAlpha(0.3) }
+                        });
+                    });
+                }
+            });
+        }
+      });
+    }
+
+    // --- EVENTS ---
+
+    document.getElementById('site-select').addEventListener('change', (e) => {
+      selectedSiteId = e.target.value;
+      const entity = viewer.entities.getById(selectedSiteId);
+      if (entity) {
+        viewer.flyTo(entity, { offset: new Cesium.HeadingPitchRange(0, -0.5, 5000) });
+        document.getElementById('jump-to-threejs').style.display = 'block';
+      } else {
+        document.getElementById('jump-to-threejs').style.display = 'none';
+      }
+    });
+
+    document.getElementById('jump-to-threejs').addEventListener('click', () => {
+      if (selectedSiteId) openInternalView(selectedSiteId);
+    });
+
+    window.openInternalView = function(id) {
+      const site = allSites.find(s => (s.id || '') === id);
+      const modelId = site?.modelId ?? '';
+      window.location.href = `internal_view.html?id=${id}&modelId=${encodeURIComponent(modelId)}`;
+    };
+
+    document.getElementById('xray-toggle').addEventListener('change', (e) => {
+      viewer.scene.globe.translucency.enabled = e.target.checked;
+    });
+
+    initApp();
+  </script>
+</body>
+</html>

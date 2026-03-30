@@ -334,20 +334,20 @@ const MODEL_PRESETS = [
     dataUrl: 'data/dc1.json',
   },
   {
-    id:'building1', name:'Building 1', type:'building',
+    id:'building1', name:'Building 1 · Kassel', type:'building',
     floorCount:4, width:110, length:110, floorHeight:3,
-    lat:51.5062, lon:9.3327,
+    lat:51.3127, lon:9.4797,   // Kassel
     dataUrl: 'data/building.json',
   },
   {
-    id:'building2', name:'Building 2', type:'building',
+    id:'building2', name:'Building 2 · Bad Hersfeld', type:'building',
     floorCount:6, width:80, length:60, floorHeight:4,
-    lat:51.5062, lon:9.3327,
+    lat:50.8681, lon:9.7059,   // Bad Hersfeld
     dataUrl: 'data/building.json',
   },
   {
-    id:'grube1', name:'Grube 1', type:'mine',
-    floorHeight:300, lat:51.5062, lon:9.3327,
+    id:'grube1', name:'Grube 1 · Heringen', type:'mine',
+    floorHeight:300, lat:50.8922, lon:9.8979,   // Heringen (Werra)
     floors: [
       { label:'ÜBERTAGE', sub:'Schachtanlage'  },
       { label:'SOHLE 1',  sub:'−300 m'         },
@@ -357,8 +357,8 @@ const MODEL_PRESETS = [
     dataUrl: 'data/grube1.json',
   },
   {
-    id:'grube2', name:'Grube 2', type:'mine',
-    floorHeight:300, lat:51.5400, lon:9.3100,
+    id:'grube2', name:'Grube 2 · Philippsthal', type:'mine',
+    floorHeight:300, lat:50.8507, lon:9.9673,   // Philippsthal (Werra)
     floors: [
       { label:'ÜBERTAGE', sub:'Schachtanlage'  },
       { label:'SOHLE 1',  sub:'−300 m'         },
@@ -579,6 +579,7 @@ class NV2Map3D {
     this.tunnelObjects = [];
     this.alertObjs     = [];
     this.autoOrbit     = true;
+    this.orbitRadius   = 90;   // Slider-gesteuert (30–250)
     this.flowSpeed     = 0.4;
     this._activeNode   = null;
     this._floorObjs    = [];
@@ -691,6 +692,7 @@ class NV2Map3D {
     history.replaceState(null, '', '#' + cfg.id);
     this._log(`Model: ${cfg.name} · ${data.nodes.length} Nodes`);
     window.problemList?.update(this.data.nodes);
+    window.mapOverlay?.update();   // aktiven Marker auf der OSM-Karte neu setzen
     if (overlay) overlay.style.display = 'none';
   }
 
@@ -1015,29 +1017,122 @@ class NV2Map3D {
     panel.innerHTML = '';
 
     if (this._model.type === 'datacenter') {
-      const rows   = this._model.rows ?? 3;
-      const rowColors = [[0,180,220],[19,211,142],[200,120,50]];
-      const L      = (this._model.length ?? 10) * 2;
+      const rows      = this._model.rows ?? 3;
+      const rowColors = [[0,180,220],[19,211,142],[200,120,50],[200,120,180],[180,160,40]];
+      const L         = (this._model.length ?? 10) * 2;
+
       ['A','B','C','D','E'].slice(0, rows).forEach((name, i) => {
         const [r,g,b] = rowColors[i % rowColors.length];
-        const rz = -L/2 + (i + 1) * L / (rows + 1);
+        const rz      = -L/2 + (i + 1) * L / (rows + 1);
+
+        // Racks dieser Reihe aus Node-Daten (room = "Rack X*")
+        const reiheNodes = this.data.nodes.filter(n => n.room?.startsWith(`Rack ${name}`));
+        const rackMap    = new Map();
+        reiheNodes.forEach(n => {
+          if (!rackMap.has(n.room)) rackMap.set(n.room, []);
+          rackMap.get(n.room).push(n);
+        });
+
+        // Schlechtester Status der Reihe
+        const worstSev = reiheNodes.reduce((m, n) => Math.max(m, S(n.status).sev), 0);
+        const worstCfg = Object.values(SC).find(c => c.sev === worstSev) ?? SC.unknown;
+        const badgeHex = '#' + worstCfg.hex.toString(16).padStart(6, '0');
+
+        const section = document.createElement('div');
+        section.className = 'floor-section';
+
+        const row = document.createElement('div');
+        row.className = 'floor-row';
+
         const btn = document.createElement('button');
         btn.className = 'floor-btn';
-        btn.innerHTML = `<span class="fb-label">Reihe ${name}</span>
-          <span class="fb-dot" style="background:rgba(${r},${g},${b},.7);box-shadow:0 0 5px rgba(${r},${g},${b},.5)"></span>`;
+        btn.innerHTML =
+          `<span class="fb-label">Reihe ${name}</span>` +
+          `<span class="fb-dim">${rackMap.size} Racks</span>` +
+          `<span class="fb-dot" style="background:rgba(${r},${g},${b},.7);box-shadow:0 0 5px rgba(${r},${g},${b},.5)"></span>`;
         btn.onclick = () => {
           this._setAutoOrbit(false);
           this.camera.position.set(0, 12, rz + 28);
           this.controls.target.set(0, 4, rz);
           this.controls.update();
         };
-        panel.appendChild(btn);
+        row.appendChild(btn);
+
+        if (rackMap.size > 0) {
+          const rackList = document.createElement('div');
+          rackList.className = 'floor-node-list';
+
+          rackMap.forEach((nodes, rackName) => {
+            const rWorstSev = nodes.reduce((m, n) => Math.max(m, S(n.status).sev), 0);
+            const rCfg      = Object.values(SC).find(c => c.sev === rWorstSev) ?? SC.unknown;
+            const rHex      = '#' + rCfg.hex.toString(16).padStart(6, '0');
+
+            // Rack-Mittelpunkt
+            const poses = nodes.map(n => this.nodePositions[n.id]).filter(Boolean);
+            const cx = poses.reduce((s, p) => s + p.x, 0) / (poses.length || 1);
+            const cz = poses.reduce((s, p) => s + p.z, 0) / (poses.length || 1);
+
+            const pill = document.createElement('button');
+            pill.className = 'floor-node-pill';
+            pill.title = nodes.map(n => n.label).join(', ');
+            pill.innerHTML =
+              `<span class="fnp-dot" style="background:${rHex};box-shadow:0 0 4px ${rHex}88"></span>` +
+              `<span class="fnp-name">${rackName}</span>` +
+              `<span class="fnp-type">${nodes.length}</span>`;
+            pill.onclick = () => {
+              this._setAutoOrbit(false);
+              this.camera.position.set(cx + 8, 14, cz + 16);
+              this.controls.target.set(cx, 4, cz);
+              this.controls.update();
+            };
+            rackList.appendChild(pill);
+          });
+
+          const expandBtn = document.createElement('button');
+          expandBtn.className = 'floor-expand-btn';
+          expandBtn.title = `${rackMap.size} Racks in Reihe ${name}`;
+          expandBtn.innerHTML =
+            `<span class="feb-count" style="color:${badgeHex}">${rackMap.size}</span>` +
+            `<span class="feb-arrow">▸</span>`;
+          expandBtn.onclick = () => {
+            const open = rackList.classList.toggle('open');
+            expandBtn.classList.toggle('open', open);
+          };
+
+          row.appendChild(expandBtn);
+          section.appendChild(row);
+          section.appendChild(rackList);
+        } else {
+          section.appendChild(row);
+        }
+
+        panel.appendChild(section);
       });
       return;
     }
 
     [...this._activeFloors].sort((a,b) => b.y - a.y).forEach(fc => {
       const [r,g,b_] = fc.accent;
+
+      // Räume auf dieser Etage (nur Nodes mit room-Feld)
+      const floorNodes = this.data.nodes.filter(n => n.floor === fc.label && n.room);
+
+      // Räume gruppieren: roomName → { nodes[], worstSev, center }
+      const roomMap = new Map();
+      floorNodes.forEach(node => {
+        if (!roomMap.has(node.room)) roomMap.set(node.room, []);
+        roomMap.get(node.room).push(node);
+      });
+
+      // Schlechtester Status über alle Räume → Badge-Farbe
+      const worstSev = floorNodes.reduce((m, n) => Math.max(m, S(n.status).sev), 0);
+      const worstCfg = Object.values(SC).find(c => c.sev === worstSev) ?? SC.unknown;
+      const badgeHex = '#' + worstCfg.hex.toString(16).padStart(6, '0');
+
+      // ── Sektion: Row + ausklappbare Raum-Liste ─────────────
+      const section = document.createElement('div');
+      section.className = 'floor-section';
+
       const row = document.createElement('div');
       row.className = 'floor-row'; row.id = `floor-row-${fc.y}`;
 
@@ -1059,7 +1154,60 @@ class NV2Map3D {
       };
 
       row.appendChild(btn); row.appendChild(btn2d);
-      panel.appendChild(row);
+
+      // Raum-Badge + Expand — nur wenn Räume vorhanden
+      if (roomMap.size > 0) {
+        const roomList = document.createElement('div');
+        roomList.className = 'floor-node-list';
+
+        roomMap.forEach((nodes, roomName) => {
+          const roomWorstSev = nodes.reduce((m, n) => Math.max(m, S(n.status).sev), 0);
+          const roomCfg      = Object.values(SC).find(c => c.sev === roomWorstSev) ?? SC.unknown;
+          const roomHex      = '#' + roomCfg.hex.toString(16).padStart(6, '0');
+
+          // Raum-Mittelpunkt aus Node-Positionen
+          const center = nodes.reduce((acc, n) => {
+            const p = this.nodePositions[n.id];
+            return p ? { x: acc.x + p.x, y: acc.y + p.y, z: acc.z + p.z } : acc;
+          }, { x: 0, y: 0, z: 0 });
+          const cnt = nodes.filter(n => this.nodePositions[n.id]).length || 1;
+          const cx = center.x / cnt, cy = center.y / cnt, cz = center.z / cnt;
+
+          const pill = document.createElement('button');
+          pill.className = 'floor-node-pill';
+          pill.title = nodes.map(n => n.label).join(', ');
+          pill.innerHTML =
+            `<span class="fnp-dot" style="background:${roomHex};box-shadow:0 0 4px ${roomHex}88"></span>` +
+            `<span class="fnp-name">${roomName}</span>` +
+            `<span class="fnp-type">${nodes.length}</span>`;
+          pill.onclick = () => {
+            this._setAutoOrbit(false);
+            this.camera.position.set(cx + 40, cy + 30, cz + 40);
+            this.controls.target.set(cx, cy, cz);
+            this.controls.update();
+          };
+          roomList.appendChild(pill);
+        });
+
+        const expandBtn = document.createElement('button');
+        expandBtn.className = 'floor-expand-btn';
+        expandBtn.title = `${roomMap.size} Räume auf ${fc.label}`;
+        expandBtn.innerHTML =
+          `<span class="feb-count" style="color:${badgeHex}">${roomMap.size}</span>` +
+          `<span class="feb-arrow">▸</span>`;
+        expandBtn.onclick = () => {
+          const open = roomList.classList.toggle('open');
+          expandBtn.classList.toggle('open', open);
+        };
+
+        row.appendChild(expandBtn);
+        section.appendChild(row);
+        section.appendChild(roomList);
+      } else {
+        section.appendChild(row);
+      }
+
+      panel.appendChild(section);
     });
   }
 
@@ -1673,9 +1821,20 @@ class NV2Map3D {
         e.preventDefault();
         document.getElementById('search-input')?.focus();
       }
+      // M → OSM-Übersichtskarte togglen
+      if (e.key === 'm' || e.key === 'M') {
+        if (!e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT') {
+          window.mapOverlay?.toggle();
+        }
+      }
     });
 
     document.getElementById('flow-speed').oninput = (e) => { this.flowSpeed = e.target.value / 100; };
+
+    document.getElementById('orbit-radius').oninput = (e) => {
+      this.orbitRadius = parseInt(e.target.value);
+      document.getElementById('orbit-radius-val').textContent = e.target.value;
+    };
 
     const hint = document.getElementById('ctrl-hint');
     const hide = () => setTimeout(() => hint.classList.add('hidden'), 2500);
@@ -1699,9 +1858,10 @@ class NV2Map3D {
     const t = Date.now() * 0.001;
 
     if (this.autoOrbit) {
-      this.camera.position.x = Math.sin(t * 0.10) * 90;
-      this.camera.position.z = Math.cos(t * 0.10) * 90;
-      this.camera.position.y = 50 + Math.sin(t * 0.05) * 18;
+      const r = this.orbitRadius;
+      this.camera.position.x = Math.sin(t * 0.10) * r;
+      this.camera.position.z = Math.cos(t * 0.10) * r;
+      this.camera.position.y = r * 0.55 + Math.sin(t * 0.05) * (r * 0.20);
       this.camera.lookAt(0, 0, 0);
     } else {
       this.controls.update();
@@ -1904,6 +2064,167 @@ class ModelDialog {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  MAP OVERLAY  (Leaflet / OSM)
+//  Zeigt alle Modelle mit lat/lon als farbige Marker auf einer
+//  CARTO-Dark-Karte. Klick auf Marker → loadModel(). Kein API-Key.
+// ─────────────────────────────────────────────────────────────
+class MapOverlay {
+  constructor(app) {
+    this.app        = app;
+    this._el        = document.getElementById('map-overlay');
+    this._select    = document.getElementById('map-site-select');
+    this._loadBtn   = document.getElementById('map-load-btn');
+    this._map       = null;      // Leaflet-Instanz (lazy init)
+    this._markers   = new Map(); // modelId → L.circleMarker
+    this._selectedId = null;
+
+    this._select.addEventListener('change', () => this._onSelect());
+    this._loadBtn.addEventListener('click',  () => this._loadSelected());
+  }
+
+  toggle() { this._el.classList.contains('open') ? this.close() : this.open(); }
+
+  open() {
+    this._el.classList.add('open');
+    this._populateSelect();
+    if (!this._map) {
+      this._initMap();
+    } else {
+      this._refreshMarkers();
+      setTimeout(() => this._map.invalidateSize(), 50);
+    }
+  }
+
+  close() { this._el.classList.remove('open'); }
+
+  // Nach jedem loadModel() aktiven Marker-Ring aktualisieren
+  update() { if (this._map) this._refreshMarkers(); }
+
+  // ── Private ──────────────────────────────────────────────────
+
+  _geoModels() {
+    return ModelManager.getAll().filter(m => m.lat != null && m.lon != null);
+  }
+
+  _populateSelect() {
+    const models   = this._geoModels();
+    const activeId = this.app._model?.id;
+    this._select.innerHTML = '<option value="">– Standort wählen –</option>';
+    models.forEach(cfg => {
+      const opt = document.createElement('option');
+      opt.value    = cfg.id;
+      opt.textContent = cfg.name;
+      if (cfg.id === activeId) opt.selected = true;
+      this._select.appendChild(opt);
+    });
+    this._selectedId = activeId ?? null;
+    this._loadBtn.disabled = !this._selectedId;
+  }
+
+  _onSelect() {
+    const id  = this._select.value;
+    this._selectedId = id || null;
+    this._loadBtn.disabled = !this._selectedId;
+    if (!id || !this._map) return;
+    const cfg = ModelManager.getById(id);
+    if (!cfg) return;
+    const marker = this._markers.get(id);
+    if (marker && this._cluster) {
+      // Cluster aufspringen lassen und dann zum Marker fliegen
+      this._cluster.zoomToShowLayer(marker, () => {
+        this._map.flyTo([cfg.lat, cfg.lon], 12, { duration: 0.6 });
+      });
+    } else {
+      this._map.flyTo([cfg.lat, cfg.lon], 12, { duration: 0.8 });
+    }
+  }
+
+  _loadSelected() {
+    if (!this._selectedId) return;
+    const cfg = ModelManager.getById(this._selectedId);
+    if (!cfg) return;
+    this.close();
+    this.app.loadModel(cfg);
+  }
+
+  _initMap() {
+    /* global L */
+    this._map = L.map('leaflet-container', { zoomControl: true });
+
+    // CARTO Voyager — neutrales Grau-Beige, kein API-Key nötig
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &amp; © <a href="https://carto.com/" target="_blank">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
+      }
+    ).addTo(this._map);
+
+    // Cluster-Gruppe: Marker werden beim Rauszoomen gebündelt
+    this._cluster = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      showCoverageOnHover: false,
+    });
+    this._map.addLayer(this._cluster);
+
+    this._refreshMarkers();
+  }
+
+  _refreshMarkers() {
+    const TYPE_COLOR = {
+      mine:       '#1a9e5c',
+      building:   '#2c6fbe',
+      datacenter: '#0d7ab5',
+    };
+    const TYPE_LABEL = { mine: 'Grube / Schacht', building: 'Gebäude', datacenter: 'Datacenter' };
+    const activeId   = this.app._model?.id;
+
+    if (this._cluster) this._cluster.clearLayers();
+    this._markers.clear();
+
+    const models = this._geoModels();
+    const bounds = [];
+
+    models.forEach(cfg => {
+      const isActive = cfg.id === activeId;
+      const color    = TYPE_COLOR[cfg.type] ?? '#666';
+
+      const marker = L.circleMarker([cfg.lat, cfg.lon], {
+        radius:      isActive ? 13 : 9,
+        fillColor:   color,
+        color:       isActive ? '#222' : '#fff',
+        weight:      isActive ? 2.5 : 1.5,
+        opacity:     1,
+        fillOpacity: isActive ? 1.0 : 0.82,
+      });
+
+      marker.bindTooltip(
+        `<strong>${cfg.name}</strong><br><span>${TYPE_LABEL[cfg.type] ?? cfg.type}</span>`,
+        { className: 'map-tooltip', direction: 'top', offset: [0, -12], sticky: false }
+      );
+
+      marker.on('click', () => {
+        this._select.value     = cfg.id;
+        this._selectedId       = cfg.id;
+        this._loadBtn.disabled = false;
+        this.close();
+        this.app.loadModel(cfg);
+      });
+
+      this._cluster.addLayer(marker);
+      this._markers.set(cfg.id, marker);
+      bounds.push([cfg.lat, cfg.lon]);
+    });
+
+    if (bounds.length) {
+      this._map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+    }
+    setTimeout(() => this._map.invalidateSize(), 60);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────────────────────
 (async () => {
@@ -1913,9 +2234,11 @@ class ModelDialog {
   window.app         = new NV2Map3D({ nodes: [], links: [] }, initialModel);
   window.modelDialog = new ModelDialog(window.app);
   window.problemList = new ProblemList(window.app);
+  window.mapOverlay  = new MapOverlay(window.app);
 
   document.getElementById('btn-model-name').textContent = initialModel.name;
   await window.app.loadModel(initialModel);
+  window.mapOverlay.open(); // beim Start direkt anzeigen
 
   // Optional: load additional models from an external registry
   // await ModelManager.loadRegistry('models.json');

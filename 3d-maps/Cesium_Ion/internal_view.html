@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>NagVis 3D – Innenansicht</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080a0e;
+      color: #c8d0da;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .card {
+      background: rgba(20, 28, 38, 0.95);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 12px;
+      padding: 40px 48px;
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 0 60px rgba(0, 212, 255, 0.08);
+    }
+
+    .logo {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #00d4ff;
+      opacity: .6;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .site-name {
+      font-size: 1.05rem;
+      color: #00d4ff;
+      margin-bottom: 28px;
+      min-height: 1.4em;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(0, 212, 255, 0.15);
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 24px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-text {
+      font-size: 0.85rem;
+      color: #667;
+      margin-bottom: 28px;
+      min-height: 1.2em;
+    }
+
+    /* Progress bar */
+    .bar-wrap {
+      background: rgba(0,212,255,.1);
+      border-radius: 4px;
+      height: 3px;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+    .bar {
+      height: 100%;
+      background: #00d4ff;
+      width: 0%;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 8px #00d4ff;
+    }
+
+    .btn-back {
+      display: inline-block;
+      padding: 9px 22px;
+      border: 1px solid rgba(0,212,255,.35);
+      border-radius: 5px;
+      color: rgba(0,212,255,.7);
+      font-size: 0.82rem;
+      cursor: pointer;
+      background: transparent;
+      text-decoration: none;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-back:hover {
+      border-color: #00d4ff;
+      color: #00d4ff;
+    }
+
+    .no-model {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(231,76,60,.12);
+      border: 1px solid rgba(231,76,60,.3);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">NagVis 3D · POC</div>
+  <h1>Lade Innenansicht</h1>
+  <div class="site-name" id="site-name">–</div>
+
+  <div class="spinner"></div>
+
+  <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+
+  <div class="status-text" id="status-text">Verbinde mit NagVis 3D…</div>
+
+  <a href="index.html" class="btn-back">← Zurück zur Karte</a>
+
+  <div class="no-model" id="no-model">
+    Für diesen Standort ist keine 3D-Innenansicht konfiguriert.<br>
+    Bitte <code>modelId</code> in <code>location.json</code> setzen.
+  </div>
+</div>
+
+<script>
+  const params  = new URLSearchParams(location.search);
+  const siteId  = params.get('id')      || '';
+  const modelId = params.get('modelId') || '';
+
+  const nameEl   = document.getElementById('site-name');
+  const statusEl = document.getElementById('status-text');
+  const bar      = document.getElementById('bar');
+  const noModel  = document.getElementById('no-model');
+
+  // Resolve site display name from location.json
+  async function resolveName() {
+    try {
+      const res   = await fetch('./location.json');
+      const sites = await res.json();
+      const site  = sites.find(s => s.id === siteId);
+      if (site?.name) nameEl.textContent = site.name;
+    } catch { /* fallback: show raw id */ }
+    if (!nameEl.textContent || nameEl.textContent === '–') {
+      nameEl.textContent = siteId || '–';
+    }
+  }
+
+  function setBar(pct)  { bar.style.width = pct + '%'; }
+  function setMsg(text) { statusEl.textContent = text; }
+
+  async function run() {
+    await resolveName();
+
+    if (!modelId) {
+      setBar(100);
+      setMsg('Kein Modell verknüpft.');
+      noModel.style.display = 'block';
+      document.querySelector('.spinner').style.display = 'none';
+      return;
+    }
+
+    setBar(30);
+    setMsg('Modell erkannt: ' + modelId);
+    await delay(300);
+
+    setBar(65);
+    setMsg('Öffne NagVis 3D…');
+    await delay(400);
+
+    setBar(100);
+    setMsg('Weiterleiten…');
+    await delay(250);
+
+    // Redirect to the v3 app with the matching model hash
+    window.location.href = `../v3/index.html#${encodeURIComponent(modelId)}`;
+  }
+
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  run();
+</script>
+</body>
+</html>

@@ -13,6 +13,12 @@
   }</script>
 
   <link rel="stylesheet" href="style.css">
+  <!-- Leaflet für OSM-Übersichtskarte -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 </head>
 <body>
 
@@ -49,6 +55,11 @@
       <!-- Problem list -->
       <button class="btn" id="btn-problems" onclick="problemList.toggle()">⚑ 0</button>
 
+      <!-- Map overview -->
+      <button class="btn" id="btn-map" onclick="mapOverlay.toggle()" title="OSM-Übersichtskarte (M)">🗺</button>
+      <!-- Info page -->
+      <a href="info.html" class="btn" title="Datenreferenz &amp; Doku" style="text-decoration:none">?</a>
+
       <!-- Model selector -->
       <button class="btn" id="btn-model-selector" onclick="modelDialog.open()">
         <span id="btn-model-name">–</span> <span style="opacity:.45;font-size:9px">▾</span>
@@ -72,6 +83,8 @@
     <div id="controls" class="panel">
       <label>FLOW SPEED</label>
       <input type="range" id="flow-speed" min="0" max="100" value="40">
+      <label>ORBIT RADIUS <span id="orbit-radius-val">90</span></label>
+      <input type="range" id="orbit-radius" min="30" max="250" value="90">
       <div class="btn-row">
         <button class="btn active" id="btn-orbit" onclick="app.toggleOrbit()">Auto-Orbit</button>
         <button class="btn"                        onclick="app.resetCam()">Reset</button>
@@ -128,6 +141,21 @@
     <span class="dlg-close" id="prob-close">✕</span>
   </div>
   <div id="prob-list"></div>
+</div>
+
+<!-- ═══════════ MAP OVERLAY ═══════════ -->
+<div id="map-overlay">
+  <div id="map-overlay-inner">
+    <div id="map-overlay-hdr">
+      <span class="dlg-title">Standort<span>karte</span></span>
+      <span class="dlg-close" onclick="mapOverlay.close()">✕</span>
+    </div>
+    <div id="map-toolbar">
+      <select id="map-site-select"></select>
+      <button id="map-load-btn" class="btn btn-primary" disabled>Modell laden</button>
+    </div>
+    <div id="leaflet-container"></div>
+  </div>
 </div>
 
 <!-- ═══════════ MODEL DIALOG ═══════════ -->

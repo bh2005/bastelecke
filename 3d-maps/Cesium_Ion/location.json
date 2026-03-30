@@ -1,0 +1,48 @@
+[
+  {
+    "id": "hq_main",
+    "name": "Konzernzentrale",
+    "type": "office",
+    "status": "ok",
+    "modelId": "building1",
+    "coords": [7.01, 51.45],
+    "assets": [
+      {"id": "HQ-CORE-01", "type": "Switch", "z": 10},
+      {"id": "HQ-CORE-02", "type": "Switch", "z": 10},
+      {"id": "HQ-AP-01",   "type": "AP",     "z": 15}
+    ]
+  },
+  {
+    "id": "mine_giant",
+    "name": "Verbundbergwerk Nord",
+    "type": "mine",
+    "status": "warning",
+    "modelId": "grube1",
+    "coords": [7.46, 51.51],
+    "sohlen": [
+      {
+        "name": "1. Sohle (-200m)",
+        "depth": -200,
+        "nodes": [
+          {"id": "S1-CORE-NORTH", "type": "Switch", "offset": [0.05,  0.02]},
+          {"id": "S1-CORE-SOUTH", "type": "Switch", "offset": [-0.05, -0.02]}
+        ]
+      },
+      {
+        "name": "2. Sohle (-500m)",
+        "depth": -500,
+        "nodes": [
+          {"id": "S2-CORE-CENTER", "type": "Switch", "offset": [0, 0]}
+        ]
+      },
+      {
+        "name": "3. Sohle (-800m)",
+        "depth": -800,
+        "nodes": [
+          {"id": "S3-CORE-WEST", "type": "Switch", "offset": [-0.1,  0.05]},
+          {"id": "S3-CORE-EAST", "type": "Switch", "offset": [ 0.1, -0.05]}
+        ]
+      }
+    ]
+  }
+]
